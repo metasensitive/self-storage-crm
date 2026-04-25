@@ -1,30 +1,32 @@
-/vendor/
-node_modules/
-npm-debug.log
-yarn-error.log
+# ========================================
+# Общее
+# ========================================
+.DS_Store
+*.log
+*.tmp
+Thumbs.db
 
-# Laravel 4 specific
-bootstrap/compiled.php
-app/storage/
+# ========================================
+# IDE (PhpStorm)
+# ========================================
+.idea/
 
-# Laravel 5 & Lumen specific
-public/storage
-public/hot
+# ========================================
+# Backend (Laravel)
+# ========================================
+backend/vendor/
+backend/.env
+backend/storage/
+backend/public/storage
+backend/public/hot
+backend/public/build
+backend/bootstrap/cache/
+backend/node_modules/
 
-# Laravel 5 & Lumen specific with changed public path
-public_html/storage
-public_html/hot
-
-storage/*.key
-.env
-Homestead.yaml
-Homestead.json
-/.vagrant
-.phpunit.result.cache
-
-/public/build
-/storage/pail
-.env.backup
-.env.production
-.phpactor.json
-auth.json
+# ========================================
+# Frontend (React)
+# ========================================
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
