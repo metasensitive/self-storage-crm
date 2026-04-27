@@ -31,8 +31,6 @@ class Location extends Model
 
     public function getUnitsCountAttribute() : int
     {
-        return $this->containers()->withCount('units')->get()->sum('units_count');
+        return $this->containers()->sum('units_count');
     }
-
-
 }

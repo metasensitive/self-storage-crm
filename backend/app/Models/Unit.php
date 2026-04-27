@@ -35,7 +35,10 @@ class Unit extends Model
     }
     public function activeRent() : ?Rent
     {
-        return $this->rents()->where('status', 'active')->latest()->first();
+        return $this->rents()
+            ->where('status', self::STATUS_ACTIVE)
+            ->latest('date_from')
+            ->first();
     }
     public function isAvailable() : bool
     {

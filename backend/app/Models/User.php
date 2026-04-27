@@ -49,11 +49,11 @@ class User extends Authenticatable
     // проверка роли
     public function isAdmin() : bool
     {
-        return $this->role() === self::ROLE_ADMIN;
+        return $this->role === self::ROLE_ADMIN;
     }
     public function isManager() : bool
     {
-        return $this->role() === self::ROLE_MANAGER;
+        return $this->role === self::ROLE_MANAGER;
     }
 
     // получить url аватара
