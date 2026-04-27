@@ -25,9 +25,9 @@ class Rent extends Model
     }
 
     // статусы аренды
-    const STATUS_ACTIVE = 'active';
-    const STATUS_FINISHED = 'finished';
-    const STATUS_CANCELLED = 'cancelled';
+    const string STATUS_ACTIVE = 'active';
+    const string STATUS_FINISHED = 'finished';
+    const string STATUS_CANCELLED = 'cancelled';
 
     public function unit(): BelongsTo
     {
