@@ -43,8 +43,8 @@ class User extends Authenticatable
     }
 
     // роли пользователей
-    const ROLE_ADMIN = 'admin';
-    const ROLE_MANAGER = 'manager';
+    const string ROLE_ADMIN = 'admin';
+    const string ROLE_MANAGER = 'manager';
 
     // проверка роли
     public function isAdmin() : bool

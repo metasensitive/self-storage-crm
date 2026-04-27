@@ -20,10 +20,10 @@ class Unit extends Model
     ];
 
     // статусы кладовок
-    const STATUS_FREE = 'free';
-    const STATUS_RESERVED = 'reserved';
-    const STATUS_RENTED = 'rented';
-    const STATUS_BLOCKED = 'blocked';
+    const string STATUS_FREE = 'free';
+    const string STATUS_RESERVED = 'reserved';
+    const string STATUS_RENTED = 'rented';
+    const string STATUS_BLOCKED = 'blocked';
 
     public function container() : BelongsTo
     {
@@ -33,10 +33,11 @@ class Unit extends Model
     {
         return $this->hasMany(Rent::class);
     }
-    public function activeRent() : ?Rent
+    public function activeRent(): ?Rent
     {
+        /** @var ?Rent */
         return $this->rents()
-            ->where('status', self::STATUS_ACTIVE)
+            ->where('status', Rent::STATUS_ACTIVE)
             ->latest('date_from')
             ->first();
     }
