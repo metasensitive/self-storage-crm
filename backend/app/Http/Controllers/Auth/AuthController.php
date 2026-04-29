@@ -50,43 +50,57 @@ class AuthController extends Controller
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
         $email = $request->email;
-        $token = Str::random(64);
+        $user = User::where('email', $email)->first();
 
-        DB::table('password_reset_tokens')->where('email', $email)->delete();
-        DB::table('password_reset_tokens')->insert([
-            'email' => $email,
-            'token' => $token,
-            'created_at' => now(),
-        ]);
+        if ($user) {
+            $plainToken = Str::random(64);
+            $hashedToken = Hash::make($plainToken);
 
-        Mail::to($email)->send(new ResetPasswordMail($token, $email));
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+
+            DB::table('password_reset_tokens')->insert([
+                'email' => $email,
+                'token' => $hashedToken,
+                'created_at' => now(),
+            ]);
+
+            Mail::to($user->email)->send(new ResetPasswordMail($plainToken, $email));
+        }
 
         return response()->json([
-           'message' => 'Ссылка для сброса пароля отправлена на вашу почту'
-        ]);
+            'message' => 'Если такой пользователь существует, ссылка для сброса отправлена на вашу почту'
+        ], 200);
     }
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
         $email = $request->email;
-        $token = $request->token;
+        $plainToken = $request->token;
 
         $resetRecord = DB::table('password_reset_tokens')
             ->where('email', $email)
-            ->where('token', $token)
             ->first();
 
+        // проверка записи
         if(!$resetRecord) {
             return response()->json([
                 'message' => 'Неверный токен сброса пароля'
             ], 400);
         }
+        // проверка срока действия ссылки
         if(now()->diffInMinutes($resetRecord->created_at) > 60) {
             DB::table('password_reset_tokens')->where('email', $email)->delete();
             return response()->json([
                'message' => 'Срок действия ссылки истёк. Запросите новый сброс пароля'
             ], 400);
         }
+        // проверка токена
+        if(!Hash::check($plainToken, $resetRecord->token)) {
+            return response()->json([
+                'message' => 'Неверный токен сброса пароля'
+            ], 400);
+        }
 
+        // пароль автоматически хешируется благодаря касту 'hashed' в модели User
         $user = User::where('email', $email)->first();
         $user->password = $request->password;
         $user->save();
