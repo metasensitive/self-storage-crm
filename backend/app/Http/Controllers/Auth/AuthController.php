@@ -20,33 +20,35 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->email)->first();
 
-        if(!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
-               'message' => 'Неверный email или пароль'
+                'message' => 'Неверный email или пароль'
             ], 401);
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
         return response()->json([
-           'user' => [
-               'id' => $user->id,
-               'name' => $user->name,
-               'email' => $user->email,
-               'role' => $user->role,
-               'avatar_url' => $user->avatar_url
-           ],
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'avatar_url' => $user->avatar_url
+            ],
             'token' => $token
         ]);
     }
+
     public function logout(): JsonResponse
     {
         request()->user()->currentAccessToken()->delete();
 
         return response()->json([
-           'message' => 'Вы вышли из системы'
+            'message' => 'Вы вышли из системы'
         ]);
     }
+
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
         $email = $request->email;
@@ -71,6 +73,7 @@ class AuthController extends Controller
             'message' => 'Если такой пользователь существует, ссылка для сброса отправлена на вашу почту'
         ], 200);
     }
+
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
         $email = $request->email;
@@ -81,20 +84,20 @@ class AuthController extends Controller
             ->first();
 
         // проверка записи
-        if(!$resetRecord) {
+        if (!$resetRecord) {
             return response()->json([
                 'message' => 'Неверный токен сброса пароля'
             ], 400);
         }
         // проверка срока действия ссылки
-        if(now()->diffInMinutes($resetRecord->created_at) > 60) {
+        if (now()->diffInMinutes($resetRecord->created_at) > 60) {
             DB::table('password_reset_tokens')->where('email', $email)->delete();
             return response()->json([
-               'message' => 'Срок действия ссылки истёк. Запросите новый сброс пароля'
+                'message' => 'Срок действия ссылки истёк. Запросите новый сброс пароля'
             ], 400);
         }
         // проверка токена
-        if(!Hash::check($plainToken, $resetRecord->token)) {
+        if (!Hash::check($plainToken, $resetRecord->token)) {
             return response()->json([
                 'message' => 'Неверный токен сброса пароля'
             ], 400);
@@ -110,7 +113,7 @@ class AuthController extends Controller
         DB::table('password_reset_tokens')->where('email', $email)->delete();
 
         return response()->json([
-           'message' => 'Пароль успешно изменен. Войдите с новым паролем'
+            'message' => 'Пароль успешно изменен. Войдите с новым паролем'
         ]);
     }
 }
