@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,5 +14,14 @@ Route::prefix('v1')->group(function () {
     // защищённые маршруты (только авторизованные)
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
+
+        // профиль
+        Route::prefix('profile')->group(function () {
+            Route::get('/', [ProfileController::class, 'show']);
+            Route::put('/', [ProfileController::class, 'update']);
+            Route::post('/avatar', [ProfileController::class, 'uploadAvatar']);
+            Route::delete('/avatar', [ProfileController::class, 'deleteAvatar']);
+            Route::put('/password', [ProfileController::class, 'changePassword']);
+        });
     });
 });
