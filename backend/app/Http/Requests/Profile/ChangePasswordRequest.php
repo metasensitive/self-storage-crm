@@ -29,7 +29,7 @@ class ChangePasswordRequest extends FormRequest
                     $fail('Текущий пароль указан неверно');
                 }
             }],
-            'new_password' => ['required', 'string', 'min:8', 'confirmed']
+            'new_password' => ['required', 'string', 'min:8', 'max:32', 'confirmed']
         ];
     }
 
@@ -39,6 +39,7 @@ class ChangePasswordRequest extends FormRequest
             'current_password.required' => 'Введите текущий пароль',
             'new_password.required' => 'Введите новый пароль',
             'new_password.min' => 'Пароль должен иметь не менее 8 символов',
+            'new_password.max' => 'Пароль не должен превышать 32 символа',
             'new_password.confirmed' => 'Пароли не совпадают'
         ];
     }

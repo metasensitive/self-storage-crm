@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -58,7 +59,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:admin')->group(function () {
 
             // Пользователи
-            // Route::apiResource('users', UserController::class);
+            Route::apiResource('users', UserController::class);
 
             // Локации (CRUD)
             // Route::apiResource('locations', LocationController::class);

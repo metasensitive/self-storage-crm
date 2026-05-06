@@ -24,8 +24,8 @@ class ResetPasswordRequest extends FormRequest
     {
         return [
             'token' => ['required', 'string'],
-            'email' => ['required', 'string', 'email', 'exists:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'email' => ['required', 'string', 'email', 'exists:users,email', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'max:32', 'confirmed'],
         ];
     }
     public function messages(): array {
@@ -35,6 +35,7 @@ class ResetPasswordRequest extends FormRequest
             'email.exists' => 'Пользователь с таким Email не найден',
             'password.required' => 'Введите новый пароль',
             'password.min' => 'Пароль должен иметь не менее 8 символов',
+            'password.max' => 'Пароль не должен превышать 32 символа',
             'password.confirmed' => 'Пароли не совпадают',
         ];
     }
