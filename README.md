@@ -14,8 +14,8 @@ CRM-панель управления сетью контейнерных кла
 
 ## Команда
 
-- metasensitive (Жараспаев Дамир) - backend
-- Scam (Дубков Илья) - frontend
+- **metasensitive** - Backend
+- **Scam** - Frontend
 
 ## Установка
 
