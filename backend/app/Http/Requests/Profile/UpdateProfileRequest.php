@@ -24,7 +24,7 @@ class UpdateProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:50'],
+            'name' => ['required', 'string', 'max:100'],
             'email' => [
                 'required',
                 'string',
@@ -39,7 +39,7 @@ class UpdateProfileRequest extends FormRequest
     {
         return [
             'name.required' => 'Имя обязательно',
-            'name.max' => 'Имя не должно быть длиннее 50 символов',
+            'name.max' => 'Имя не должно быть длиннее 100 символов',
             'email.required' => 'Email обязателен',
             'email.email' => 'Введите корректный Email',
             'email.unique' => 'Этот Email уже используется'
