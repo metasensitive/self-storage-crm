@@ -5,6 +5,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\LocationController;
 
 /*
 | API Routes v1
@@ -42,8 +43,8 @@ Route::prefix('v1')->group(function () {
             // Route::patch('rents/{id}/finish', [RentController::class, 'finish']);
 
             // Чтение локаций, контейнеров, кладовок
-            // Route::get('locations', [LocationController::class, 'index']);
-            // Route::get('locations/{id}', [LocationController::class, 'show']);
+             Route::get('locations', [LocationController::class, 'index']);
+             Route::get('locations/{location}', [LocationController::class, 'show']);
             // Route::get('containers', [ContainerController::class, 'index']);
             // Route::get('containers/{id}', [ContainerController::class, 'show']);
             // Route::get('units', [UnitController::class, 'index']);
@@ -62,7 +63,9 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('users', UserController::class);
 
             // Локации (CRUD)
-            // Route::apiResource('locations', LocationController::class);
+            Route::post('locations', [LocationController::class, 'store']);
+            Route::put('locations/{location}', [LocationController::class, 'update']);
+            Route::delete('locations/{location}', [LocationController::class, 'destroy']);
 
             // Контейнеры (CRUD)
             // Route::apiResource('containers', ContainerController::class);
