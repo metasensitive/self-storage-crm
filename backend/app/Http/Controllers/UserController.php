@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Http\Resources\UserResource;
 
 class UserController extends Controller
 {
@@ -19,7 +20,7 @@ class UserController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'data' => $users->map(fn($user) => $this->formatUser($user)),
+            'data' => UserResource::collection($users),
             'meta' => [
                 'current_page' => $users->currentPage(),
                 'last_page' => $users->lastPage(),
@@ -41,14 +42,14 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'Пользователь создан',
-            'data' => $this->formatUser($user),
+            'data' => new UserResource($user),
         ], 201);
     }
 
     public function show(User $user): JsonResponse
     {
         return response()->json([
-            'data' => $this->formatUser($user),
+            'data' => new UserResource($user),
         ]);
     }
 
@@ -99,7 +100,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'Пользователь обновлён',
-            'data' => $this->formatUser($user->fresh()),
+            'data' => new UserResource($user),
         ]);
     }
 
@@ -132,18 +133,5 @@ class UserController extends Controller
         return response()->json([
             'message' => 'Пользователь удалён',
         ]);
-    }
-
-    private function formatUser(User $user): array
-    {
-        return [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'role' => $user->role,
-            'avatar_url' => $user->avatar_url,
-            'created_at' => $user->created_at?->toISOString(),
-            'updated_at' => $user->updated_at?->toISOString(),
-        ];
     }
 }

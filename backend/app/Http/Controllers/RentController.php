@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 use Illuminate\Validation\Rule;
+use App\Http\Resources\RentResource;
 
 class RentController extends Controller
 {
@@ -42,7 +43,7 @@ class RentController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'data' => $rents->map(fn($rent) => $this->formatRent($rent)),
+            'data' => RentResource::collection($rents),
             'meta' => [
                 'current_page' => $rents->currentPage(),
                 'last_page' => $rents->lastPage(),
@@ -71,7 +72,7 @@ class RentController extends Controller
 
         return response()->json([
             'message' => 'Аренда создана',
-            'data' => $this->formatRent($rent),
+            'data' => new RentResource($rent),
         ], 201);
     }
 
@@ -84,7 +85,7 @@ class RentController extends Controller
         ]);
 
         return response()->json([
-            'data' => $this->formatRent($rent),
+            'data' => new RentResource($rent),
         ]);
     }
 
@@ -104,37 +105,7 @@ class RentController extends Controller
 
         return response()->json([
             'message' => 'Аренда завершена',
-            'data' => $this->formatRent($rent),
+            'data' => new RentResource($rent),
         ]);
-    }
-
-    public function formatRent(Rent $rent): array
-    {
-        $unit = $rent->unit;
-        $container = $unit?->container;
-        $location = $container?->location;
-
-        return [
-            'id' => $rent->id,
-            'unit' => $unit ? [
-                'id' => $unit->id,
-                'number' => $unit->number,
-                'container' => $container ? [
-                    'id' => $container->id,
-                    'code' => $container->code,
-                    'location' => $location ? [
-                        'id' => $location->id,
-                        'name' => $location->name,
-                        'city' => $location->city,
-                    ] : null,
-                ] : null,
-            ] : null,
-            'date_from' => $rent->date_from?->toDateString(),
-            'date_to' => $rent->date_to?->toDateString(),
-            'price' => (float)($rent->price ?? 0),
-            'status' => $rent->status,
-            'created_at' => $rent->created_at?->toISOString(),
-            'updated_at' => $rent->updated_at?->toISOString(),
-        ];
     }
 }
