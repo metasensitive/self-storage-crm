@@ -25,6 +25,16 @@ class Unit extends Model
     const string STATUS_RENTED = 'rented';
     const string STATUS_BLOCKED = 'blocked';
 
+    public static function getAvailableStatuses(): array
+    {
+        return [
+            self::STATUS_FREE,
+            self::STATUS_RESERVED,
+            self::STATUS_RENTED,
+            self::STATUS_BLOCKED,
+        ];
+    }
+
     public function container() : BelongsTo
     {
         return $this->belongsTo(Container::class);
