@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Http\Resources\ContainerResource;
 
 class ContainerController extends Controller
 {
@@ -28,7 +29,7 @@ class ContainerController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'data' => $containers->map(fn($container) => $this->formatContainer($container)),
+            'data' => ContainerResource::collection($containers),
             'meta' => [
                 'current_page' => $containers->currentPage(),
                 'last_page' => $containers->lastPage(),
@@ -52,7 +53,7 @@ class ContainerController extends Controller
 
         return response()->json([
             'message' => 'Контейнер создан',
-            'data' => $this->formatContainer($container),
+            'data' => new ContainerResource($container),
         ], 201);
     }
 
@@ -61,7 +62,7 @@ class ContainerController extends Controller
         $container->load('location:id,name,city')->loadCount('units');
 
         return response()->json([
-            'data' => $this->formatContainer($container),
+            'data' => new ContainerResource($container),
         ]);
     }
 
@@ -78,7 +79,7 @@ class ContainerController extends Controller
 
         return response()->json([
             'message' => 'Контейнер обновлен',
-            'data' => $this->formatContainer($container),
+            'data' => new ContainerResource($container),
         ]);
     }
 
@@ -123,21 +124,7 @@ class ContainerController extends Controller
 
         return response()->json([
             'message' => 'Статус контейнера обновлен',
-            'data' => $this->formatContainer($container),
+            'data' => new ContainerResource($container),
         ], 200);
-    }
-
-    private function formatContainer(Container $container): array
-    {
-        return [
-            'id' => $container->id,
-            'code' => $container->code,
-            'units_count' => (int)$container->units_count,
-            'status' => $container->status,
-            'installed_at' => $container->installed_at?->toISOString(),
-            'location' => $container->location?->only(['id', 'name', 'city']),
-            'created_at' => $container->created_at?->toISOString(),
-            'updated_at' => $container->updated_at?->toISOString(),
-        ];
     }
 }

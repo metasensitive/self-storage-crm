@@ -7,6 +7,7 @@ use App\Http\Requests\Location\UpdateLocationRequest;
 use App\Models\Location;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use App\Http\Resources\LocationResource;
 
 class LocationController extends Controller
 {
@@ -20,7 +21,7 @@ class LocationController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'data' => $locations->map(fn($location) => $this->formatLocation($location)),
+            'data' => LocationResource::collection($locations),
             'meta' => [
                 'current_page' => $locations->currentPage(),
                 'last_page' => $locations->lastPage(),
@@ -42,14 +43,14 @@ class LocationController extends Controller
 
         return response()->json([
             'message' => 'Локация создана',
-            'data' => $this->formatLocation($location)
+            'data' => new LocationResource($location),
         ], 201);
     }
 
     public function show(Location $location): JsonResponse
     {
         return response()->json([
-            'data' => $this->formatLocation($location)
+            'data' => new LocationResource($location),
         ]);
     }
 
@@ -65,7 +66,7 @@ class LocationController extends Controller
 
         return response()->json([
             'message' => 'Локация обновлена',
-            'data' => $this->formatLocation($location->fresh())
+            'data' => new LocationResource($location),
         ]);
     }
 
@@ -88,22 +89,5 @@ class LocationController extends Controller
         return response()->json([
             'message' => 'Локация удалена'
         ]);
-    }
-
-    private function formatLocation(Location $location): array
-    {
-        return [
-            'id' => $location->id,
-            'name' => $location->name,
-            'city' => $location->city,
-            'address' => $location->address,
-            'latitude' => $location->latitude !== null ? (float) $location->latitude : null,
-            'longitude' => $location->longitude !== null ? (float) $location->longitude : null,
-            'status' => $location->status,
-            'containers_count' => (int) ($location->containers_count ?? 0),
-            'units_count' => (int) ($location->units_count ?? 0),
-            'created_at' => $location->created_at?->toISOString(),
-            'updated_at' => $location->updated_at?->toISOString(),
-        ];
     }
 }

@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use App\Http\Resources\UnitResource;
 
 class UnitController extends Controller
 {
@@ -32,7 +33,7 @@ class UnitController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'data' => $units->map(fn($unit) => $this->formatUnit($unit)),
+            'data' => UnitResource::collection($units),
             'meta' => [
                 'current_page' => $units->currentPage(),
                 'last_page' => $units->lastPage(),
@@ -62,7 +63,7 @@ class UnitController extends Controller
 
         return response()->json([
             'message' => 'Кладовка создана',
-            'data' => $this->formatUnit($unit),
+            'data' => new UnitResource($unit),
         ], 201);
     }
 
@@ -76,7 +77,7 @@ class UnitController extends Controller
         ]);
 
         return response()->json([
-            'data' => $this->formatUnit($unit),
+            'data' => new UnitResource($unit),
         ]);
     }
 
@@ -98,7 +99,7 @@ class UnitController extends Controller
 
         return response()->json([
             'message' => 'Кладовка обновлена',
-            'data' => $this->formatUnit($unit),
+            'data' => new UnitResource($unit),
         ]);
     }
 
@@ -148,7 +149,7 @@ class UnitController extends Controller
 
         return response()->json([
             'message' => 'Статус кладовки обновлен',
-            'data' => $this->formatUnit($unit),
+            'data' => new UnitResource($unit),
         ]);
     }
 
@@ -177,26 +178,7 @@ class UnitController extends Controller
 
         return response()->json([
             'message' => 'Цена кладовки обновлена',
-            'data' => $this->formatUnit($unit),
+            'data' => new UnitResource($unit),
         ]);
-    }
-
-    private function formatUnit(Unit $unit): array
-    {
-        return [
-            'id' => $unit->id,
-            'number' => $unit->number,
-            'size' => (float)($unit->size ?? 0),
-            'price' => (float)($unit->price ?? 0),
-            'status' => $unit->status,
-            'active_rents_count' => (int)($unit->active_rents_count ?? 0),
-            'container' => $unit->container ? [
-                'id' => $unit->container->id,
-                'code' => $unit->container->code,
-                'location' => $unit->container->location?->only(['id', 'name', 'city']),
-            ] : null,
-            'created_at' => $unit->created_at?->toISOString(),
-            'updated_at' => $unit->updated_at?->toISOString(),
-        ];
     }
 }
