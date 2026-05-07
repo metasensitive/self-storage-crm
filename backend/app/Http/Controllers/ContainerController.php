@@ -13,6 +13,14 @@ use App\Http\Resources\ContainerResource;
 
 class ContainerController extends Controller
 {
+    /**
+     * Список контейнеров.
+     *
+     * Фильтры: location_id, status.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Контейнеры
+     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -39,6 +47,13 @@ class ContainerController extends Controller
         ]);
     }
 
+    /**
+     * Создание контейнера.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Контейнеры
+     */
     public function store(StoreContainerRequest $request): JsonResponse
     {
         $container = Container::create($request->validated());
@@ -57,6 +72,13 @@ class ContainerController extends Controller
         ], 201);
     }
 
+    /**
+     * Просмотр контейнера.
+     *
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Контейнеры
+     */
     public function show(Container $container): JsonResponse
     {
         $container->load('location:id,name,city')->loadCount('units');
@@ -66,6 +88,13 @@ class ContainerController extends Controller
         ]);
     }
 
+    /**
+     * Обновление контейнера.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Контейнеры
+     */
     public function update(UpdateContainerRequest $request, Container $container): JsonResponse
     {
         $container->update($request->validated());
@@ -83,6 +112,14 @@ class ContainerController extends Controller
         ]);
     }
 
+    /**
+     * Удаление контейнера.
+     *
+     * Нельзя удалить контейнер, в котором есть кладовки.
+     * Доступ: только администратор.
+     *
+     * @tags Контейнеры
+     */
     public function destroy(Container $container): JsonResponse
     {
         if ($container->units()->exists()) {
@@ -104,6 +141,14 @@ class ContainerController extends Controller
         ]);
     }
 
+    /**
+     * Смена статуса контейнера.
+     *
+     * Принимает: status (active, inactive, maintenance).
+     * Доступ: только администратор.
+     *
+     * @tags Контейнеры
+     */
     public function updateStatus(Request $request, Container $container): JsonResponse
     {
         $validated = $request->validate([

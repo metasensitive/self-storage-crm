@@ -16,6 +16,13 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    /**
+     * Вход в систему.
+     *
+     * Возвращает токен Sanctum для дальнейшей авторизации.
+     *
+     * @tags Аутентификация
+     */
     public function login(LoginRequest $request): JsonResponse
     {
         $user = User::where('email', $request->email)->first();
@@ -40,6 +47,14 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Выход из системы.
+     *
+     * Удаляет текущий токен доступа.
+     *
+     * @tags Аутентификация
+     */
+
     public function logout(): JsonResponse
     {
         request()->user()->currentAccessToken()->delete();
@@ -48,6 +63,14 @@ class AuthController extends Controller
             'message' => 'Вы вышли из системы'
         ]);
     }
+
+    /**
+     * Запрос на восстановление пароля.
+     *
+     * Отправляет письмо со ссылкой для сброса пароля на указанный email.
+     *
+     * @tags Аутентификация
+     */
 
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
@@ -73,6 +96,14 @@ class AuthController extends Controller
             'message' => 'Если такой пользователь существует, ссылка для сброса отправлена на вашу почту'
         ], 200);
     }
+
+    /**
+     * Сброс пароля.
+     *
+     * Устанавливает новый пароль по токену из письма.
+     *
+     * @tags Аутентификация
+     */
 
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
