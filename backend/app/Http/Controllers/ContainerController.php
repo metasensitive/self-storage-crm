@@ -91,7 +91,7 @@ class ContainerController extends Controller
         }
 
         Log::info('Контейнер удален', [
-            'user_id' => request()->user()->id,
+            'user_id' => auth()->user()->id,
             'container_id' => $container->id,
             'code' => $container->code,
         ]);

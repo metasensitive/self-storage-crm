@@ -3,10 +3,10 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\ContainerController;
+use App\Http\Controllers\UnitController;
 
 /*
 | API Routes v1
@@ -48,8 +48,8 @@ Route::prefix('v1')->group(function () {
             Route::get('locations/{location}', [LocationController::class, 'show']);
             Route::get('containers', [ContainerController::class, 'index']);
             Route::get('containers/{container}', [ContainerController::class, 'show']);
-            // Route::get('units', [UnitController::class, 'index']);
-            // Route::get('units/{id}', [UnitController::class, 'show']);
+            Route::get('units', [UnitController::class, 'index']);
+            Route::get('units/{unit}', [UnitController::class, 'show']);
 
             // Аналитика
             // Route::get('analytics/network', [AnalyticsController::class, 'network']);
@@ -75,9 +75,11 @@ Route::prefix('v1')->group(function () {
             Route::patch('containers/{container}/status', [ContainerController::class, 'updateStatus']);
 
             // Кладовки (CRUD)
-            // Route::apiResource('units', UnitController::class);
-            // Route::patch('units/{id}/status', [UnitController::class, 'updateStatus']);
-            // Route::patch('units/{id}/price', [UnitController::class, 'updatePrice']);
+            Route::post('units', [UnitController::class, 'store']);
+            Route::put('units/{unit}', [UnitController::class, 'update']);
+            Route::delete('units/{unit}', [UnitController::class, 'destroy']);
+            Route::patch('units/{unit}/status', [UnitController::class, 'updateStatus']);
+            Route::patch('units/{unit}/price', [UnitController::class, 'updatePrice']);
         });
     });
 });

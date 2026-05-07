@@ -78,7 +78,7 @@ class LocationController extends Controller
         }
 
         Log::info('Локация удалена', [
-            'user_id' => request()->user()->id,
+            'user_id' => auth()->user()->id,
             'location_id' => $location->id,
             'name' => $location->name
         ]);
