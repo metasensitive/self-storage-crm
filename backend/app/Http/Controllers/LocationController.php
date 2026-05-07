@@ -93,17 +93,17 @@ class LocationController extends Controller
     private function formatLocation(Location $location): array
     {
         return [
-          'id' => $location->id,
+            'id' => $location->id,
             'name' => $location->name,
             'city' => $location->city,
             'address' => $location->address,
-            'latitude' => (float)$location->latitude,
-            'longitude' => (float)$location->longitude,
+            'latitude' => $location->latitude !== null ? (float) $location->latitude : null,
+            'longitude' => $location->longitude !== null ? (float) $location->longitude : null,
             'status' => $location->status,
-            'containers_count' => (int)$location->containers_count,
-            'units_count' => (int) $location->units_count,
-            'created_at' => $location->created_at,
-            'updated_at' => $location->updated_at,
+            'containers_count' => (int) ($location->containers_count ?? 0),
+            'units_count' => (int) ($location->units_count ?? 0),
+            'created_at' => $location->created_at?->toISOString(),
+            'updated_at' => $location->updated_at?->toISOString(),
         ];
     }
 }

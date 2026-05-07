@@ -11,6 +11,10 @@ class Container extends Model
 {
     use HasFactory;
 
+    const string STATUS_ACTIVE = 'active';
+    const string STATUS_INACTIVE = 'inactive';
+    const string STATUS_MAINTENANCE = 'maintenance';
+
     protected $fillable = [
         'location_id',
         'code',
@@ -18,6 +22,15 @@ class Container extends Model
         'status',
         'installed_at',
     ];
+
+    public static function getAvailableStatuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_INACTIVE,
+            self::STATUS_MAINTENANCE,
+        ];
+    }
 
     protected function casts(): array {
         return [
