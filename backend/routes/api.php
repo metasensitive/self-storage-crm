@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\ContainerController;
 
 /*
 | API Routes v1
@@ -43,10 +44,10 @@ Route::prefix('v1')->group(function () {
             // Route::patch('rents/{id}/finish', [RentController::class, 'finish']);
 
             // Чтение локаций, контейнеров, кладовок
-             Route::get('locations', [LocationController::class, 'index']);
-             Route::get('locations/{location}', [LocationController::class, 'show']);
-            // Route::get('containers', [ContainerController::class, 'index']);
-            // Route::get('containers/{id}', [ContainerController::class, 'show']);
+            Route::get('locations', [LocationController::class, 'index']);
+            Route::get('locations/{location}', [LocationController::class, 'show']);
+            Route::get('containers', [ContainerController::class, 'index']);
+            Route::get('containers/{container}', [ContainerController::class, 'show']);
             // Route::get('units', [UnitController::class, 'index']);
             // Route::get('units/{id}', [UnitController::class, 'show']);
 
@@ -68,8 +69,10 @@ Route::prefix('v1')->group(function () {
             Route::delete('locations/{location}', [LocationController::class, 'destroy']);
 
             // Контейнеры (CRUD)
-            // Route::apiResource('containers', ContainerController::class);
-            // Route::patch('containers/{id}/status', [ContainerController::class, 'updateStatus']);
+            Route::post('containers', [ContainerController::class, 'store']);
+            Route::put('containers/{container}', [ContainerController::class, 'update']);
+            Route::delete('containers/{container}', [ContainerController::class, 'destroy']);
+            Route::patch('containers/{container}/status', [ContainerController::class, 'updateStatus']);
 
             // Кладовки (CRUD)
             // Route::apiResource('units', UnitController::class);
