@@ -14,6 +14,14 @@ class AnalyticsController extends Controller
         $this->analyticsService = $analyticsService;
     }
 
+    /**
+     * Аналитика по всей сети.
+     *
+     * Общее количество кладовок, занятость, доход за месяц.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Аналитика
+     */
     public function network(): JsonResponse
     {
         return response()->json([
@@ -21,6 +29,14 @@ class AnalyticsController extends Controller
         ]);
     }
 
+    /**
+     * Аналитика по локации.
+     *
+     * Статистика по конкретной локации.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Аналитика
+     */
     public function location(int $locationId): JsonResponse
     {
         $data = $this->analyticsService->location($locationId);
@@ -36,18 +52,26 @@ class AnalyticsController extends Controller
         ]);
     }
 
+    /**
+     * Аналитика по контейнеру.
+     *
+     * Статистика по конкретному контейнеру.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Аналитика
+     */
     public function container(int $containerId): JsonResponse
     {
         $data = $this->analyticsService->container($containerId);
 
         if (!$data) {
             return response()->json([
-               'message' => 'Контейнер не найден'
+                'message' => 'Контейнер не найден'
             ], 404);
         }
 
         return response()->json([
-           'data' => $data,
+            'data' => $data,
         ]);
     }
 }

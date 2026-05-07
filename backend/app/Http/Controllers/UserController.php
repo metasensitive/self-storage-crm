@@ -14,6 +14,14 @@ use App\Http\Resources\UserResource;
 
 class UserController extends Controller
 {
+    /**
+     * Список пользователей.
+     *
+     * Пагинация по 20 записей.
+     * Доступ: только администратор.
+     *
+     * @tags Пользователи
+     */
     public function index(): JsonResponse
     {
         $users = User::orderBy('created_at', 'desc')
@@ -30,6 +38,13 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Создание пользователя.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Пользователи
+     */
     public function store(StoreUserRequest $request): JsonResponse
     {
         $user = User::create($request->validated());
@@ -46,6 +61,13 @@ class UserController extends Controller
         ], 201);
     }
 
+    /**
+     * Просмотр пользователя.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Пользователи
+     */
     public function show(User $user): JsonResponse
     {
         return response()->json([
@@ -53,6 +75,14 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Обновление пользователя.
+     *
+     * Нельзя изменить свою роль. Пароль опционален.
+     * Доступ: только администратор.
+     *
+     * @tags Пользователи
+     */
     public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
         if ($request->user()->is($user) && $request->has('role')) {
@@ -104,6 +134,14 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Удаление пользователя.
+     *
+     * Нельзя удалить самого себя.
+     * Доступ: только администратор.
+     *
+     * @tags Пользователи
+     */
     public function destroy(Request $request, User $user): JsonResponse
     {
         // Нельзя удалить самого себя

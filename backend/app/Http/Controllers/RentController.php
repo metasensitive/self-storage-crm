@@ -20,6 +20,14 @@ class RentController extends Controller
         $this->rentService = $rentService;
     }
 
+    /**
+     * Список аренд.
+     *
+     * Фильтры: status, unit_id, location_id.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Аренды
+     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -53,6 +61,15 @@ class RentController extends Controller
         ]);
     }
 
+    /**
+     * Создание аренды.
+     *
+     * Кладовка должна быть свободна. Минимальный срок — 10 дней.
+     * Цена рассчитывается автоматически: цена_кладовки × количество_дней.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Аренды
+     */
     public function store(StoreRentRequest $request): JsonResponse
     {
         try {
@@ -76,6 +93,13 @@ class RentController extends Controller
         ], 201);
     }
 
+    /**
+     * Просмотр аренды.
+     *
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Аренды
+     */
     public function show(Rent $rent): JsonResponse
     {
         $rent->load([
@@ -89,6 +113,15 @@ class RentController extends Controller
         ]);
     }
 
+    /**
+     * Завершение аренды.
+     *
+     * Освобождает кладовку (статус → free).
+     * Нельзя завершить уже завершённую аренду.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Аренды
+     */
     public function finishRent(Rent $rent): JsonResponse
     {
         try {

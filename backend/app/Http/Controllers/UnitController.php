@@ -14,6 +14,14 @@ use App\Http\Resources\UnitResource;
 
 class UnitController extends Controller
 {
+    /**
+     * Список кладовок.
+     *
+     * Фильтры: container_id, status.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Кладовки
+     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -43,6 +51,14 @@ class UnitController extends Controller
         ]);
     }
 
+    /**
+     * Создание кладовки.
+     *
+     * Номер должен быть уникальным в рамках контейнера.
+     * Доступ: только администратор.
+     *
+     * @tags Кладовки
+     */
     public function store(StoreUnitRequest $request): JsonResponse
     {
         $unit = Unit::create($request->validated());
@@ -67,6 +83,13 @@ class UnitController extends Controller
         ], 201);
     }
 
+    /**
+     * Просмотр кладовки.
+     *
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Кладовки
+     */
     public function show(Unit $unit): JsonResponse
     {
         $unit->load([
@@ -81,6 +104,13 @@ class UnitController extends Controller
         ]);
     }
 
+    /**
+     * Обновление кладовки.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Кладовки
+     */
     public function update(UpdateUnitRequest $request, Unit $unit): JsonResponse
     {
         $unit->update($request->validated());
@@ -103,6 +133,14 @@ class UnitController extends Controller
         ]);
     }
 
+    /**
+     * Удаление кладовки.
+     *
+     * Нельзя удалить кладовку с активной арендой.
+     * Доступ: только администратор.
+     *
+     * @tags Кладовки
+     */
     public function destroy(Unit $unit): JsonResponse
     {
         if ($unit->rents()->where('status', Rent::STATUS_ACTIVE)->exists()) {
@@ -124,6 +162,14 @@ class UnitController extends Controller
         ]);
     }
 
+    /**
+     * Смена статуса кладовки.
+     *
+     * Принимает: status (free, reserved, rented, blocked).
+     * Доступ: только администратор.
+     *
+     * @tags Кладовки
+     */
     public function updateStatus(Request $request, Unit $unit): JsonResponse
     {
         $validated = $request->validate([
@@ -153,6 +199,14 @@ class UnitController extends Controller
         ]);
     }
 
+    /**
+     * Изменение цены кладовки.
+     *
+     * Принимает: price (число, мин: 0, макс: 99999999.99).
+     * Доступ: только администратор.
+     *
+     * @tags Кладовки
+     */
     public function updatePrice(Request $request, Unit $unit): JsonResponse
     {
         $validated = $request->validate([

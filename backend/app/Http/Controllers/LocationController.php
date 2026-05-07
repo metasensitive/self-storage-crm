@@ -11,6 +11,14 @@ use App\Http\Resources\LocationResource;
 
 class LocationController extends Controller
 {
+    /**
+     * Список локаций.
+     *
+     * С агрегацией: количество контейнеров и кладовок.
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Локации
+     */
     public function index(): JsonResponse
     {
         $locations = Location::query()
@@ -31,6 +39,13 @@ class LocationController extends Controller
         ]);
     }
 
+    /**
+     * Создание локации.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Локации
+     */
     public function store(StoreLocationRequest $request): JsonResponse
     {
         $location = Location::create($request->validated());
@@ -47,6 +62,13 @@ class LocationController extends Controller
         ], 201);
     }
 
+    /**
+     * Просмотр локации.
+     *
+     * Доступ: администратор и менеджер.
+     *
+     * @tags Локации
+     */
     public function show(Location $location): JsonResponse
     {
         return response()->json([
@@ -54,6 +76,13 @@ class LocationController extends Controller
         ]);
     }
 
+    /**
+     * Обновление локации.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Локации
+     */
     public function update(UpdateLocationRequest $request, Location $location): JsonResponse
     {
         $location->update($request->validated());
@@ -70,6 +99,14 @@ class LocationController extends Controller
         ]);
     }
 
+    /**
+     * Удаление локации.
+     *
+     * Нельзя удалить локацию, в которой есть контейнеры.
+     * Доступ: только администратор.
+     *
+     * @tags Локации
+     */
     public function destroy(Location $location): JsonResponse
     {
         if ($location->containers()->exists()) {
