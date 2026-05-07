@@ -8,6 +8,7 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\ContainerController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\RentController;
+use App\Http\Controllers\AnalyticsController;
 
 /*
 | API Routes v1
@@ -55,9 +56,9 @@ Route::prefix('v1')->group(function () {
             Route::get('units/{unit}', [UnitController::class, 'show']);
 
             // Аналитика
-            // Route::get('analytics/network', [AnalyticsController::class, 'network']);
-            // Route::get('analytics/locations/{id}', [AnalyticsController::class, 'location']);
-            // Route::get('analytics/containers/{id}', [AnalyticsController::class, 'container']);
+            Route::get('analytics/network', [AnalyticsController::class, 'network']);
+            Route::get('analytics/locations/{id}', [AnalyticsController::class, 'location']);
+            Route::get('analytics/containers/{id}', [AnalyticsController::class, 'container']);
         });
 
         // только админ
