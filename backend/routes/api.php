@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\ContainerController;
 use App\Http\Controllers\UnitController;
+use App\Http\Controllers\RentController;
 
 /*
 | API Routes v1
@@ -40,8 +41,10 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:admin,manager')->group(function () {
 
             // Аренды (полный CRUD для обеих ролей)
-            // Route::apiResource('rents', RentController::class);
-            // Route::patch('rents/{id}/finish', [RentController::class, 'finish']);
+            Route::get('rents', [RentController::class, 'index']);
+            Route::post('rents', [RentController::class, 'store']);
+            Route::get('rents/{rent}', [RentController::class, 'show']);
+            Route::patch('rents/{rent}/finish', [RentController::class, 'finishRent']);
 
             // Чтение локаций, контейнеров, кладовок
             Route::get('locations', [LocationController::class, 'index']);

@@ -17,10 +17,12 @@ class Rent extends Model
         'price',
         'status',
     ];
-    protected function casts(): array {
+
+    protected function casts(): array
+    {
         return [
-          'date_from' => 'date',
-          'date_to' => 'date',
+            'date_from' => 'date',
+            'date_to' => 'date',
         ];
     }
 
@@ -28,6 +30,15 @@ class Rent extends Model
     const string STATUS_ACTIVE = 'active';
     const string STATUS_FINISHED = 'finished';
     const string STATUS_CANCELLED = 'cancelled';
+
+    public static function getAvailableStatuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_FINISHED,
+            self::STATUS_CANCELLED,
+        ];
+    }
 
     public function unit(): BelongsTo
     {
