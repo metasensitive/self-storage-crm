@@ -10,3 +10,4 @@ export { Empty } from './Empty';
 export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
 export { ToastProvider, useToast, useToastError, getGlobalToast } from './Toast';
+export { AddressAutocomplete, type AddressSuggestion } from './AddressAutocomplete';
