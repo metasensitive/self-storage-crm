@@ -10,14 +10,21 @@ export default defineConfig({
     },
   },
   server: {
+    // Слушаем на всех интерфейсах (0.0.0.0). Полезно при включённом VPN —
+    // некоторые VPN-клиенты перехватывают DNS-имя `localhost`, тогда как
+    // адрес loopback `127.0.0.1` остаётся доступен напрямую.
+    host: true,
     port: 5173,
+    strictPort: true,
     proxy: {
+      // Используем явный loopback `127.0.0.1` вместо имени `localhost`
+      // по той же причине — чтобы не маршрутизироваться через VPN-туннель.
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
       '/storage': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
