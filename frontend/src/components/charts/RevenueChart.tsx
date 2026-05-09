@@ -211,32 +211,45 @@ export function RevenueChart({ data, height = 260, accent = 'var(--ink)' }: Reve
         )}
       </svg>
 
-      {/* HTML tooltip — позиционируется в процентах поверх svg */}
-      {hoverPoint && hoverData && (
-        <div
-          style={{
-            position: 'absolute',
-            left: `${(hoverPoint[0] / W) * 100}%`,
-            top: 4,
-            transform: 'translateX(-50%)',
-            background: 'var(--bg-elev)',
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--r-md)',
-            boxShadow: 'var(--shadow-2)',
-            padding: '8px 12px',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-            zIndex: 2,
-          }}
-        >
-          <div className="t-small mono" style={{ color: 'var(--ink-3)' }}>
-            {dayjs(hoverData.date).format('D MMMM, dd').replace(/^./, (c) => c.toUpperCase())}
+      {/* HTML tooltip — следует за точкой по вертикали, переворачивается у краёв */}
+      {hoverPoint && hoverData && (() => {
+        const xPct = (hoverPoint[0] / W) * 100;
+        const yPct = (hoverPoint[1] / H) * 100;
+        // Если точка в верхней трети — показываем tooltip ниже точки, иначе выше
+        const tooltipBelow = yPct < 30;
+        // Горизонтальное выравнивание у краёв, чтобы tooltip не вылезал
+        let translateX = '-50%';
+        if (xPct < 8) translateX = '0';
+        else if (xPct > 92) translateX = '-100%';
+        const translateY = tooltipBelow ? 'calc(0% + 14px)' : 'calc(-100% - 14px)';
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${xPct}%`,
+              top: `${yPct}%`,
+              transform: `translate(${translateX}, ${translateY})`,
+              background: 'var(--bg-elev)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-md)',
+              boxShadow: 'var(--shadow-2)',
+              padding: '8px 12px',
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+              zIndex: 2,
+            }}
+          >
+            <div className="t-small mono" style={{ color: 'var(--ink-3)' }}>
+              {dayjs(hoverData.date)
+                .format('D MMMM, dd')
+                .replace(/^./, (c) => c.toUpperCase())}
+            </div>
+            <div className="serif tnum" style={{ fontSize: 18, lineHeight: 1.2, marginTop: 2 }}>
+              {fmtMoney(hoverData.value)}
+            </div>
           </div>
-          <div className="serif tnum" style={{ fontSize: 18, lineHeight: 1.2, marginTop: 2 }}>
-            {fmtMoney(hoverData.value)}
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
