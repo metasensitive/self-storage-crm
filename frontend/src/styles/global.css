@@ -534,8 +534,17 @@ input, select, textarea { font: inherit; color: inherit; }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-4); }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* Selection */
-::selection { background: oklch(0.22 0.01 60 / 0.16); }
+/* Selection — адаптивна под светлую/тёмную тему через --ink */
+::selection {
+  background: color-mix(in oklab, var(--ink) 22%, transparent);
+  color: var(--ink);
+}
+input::selection,
+textarea::selection,
+.input::selection {
+  background: color-mix(in oklab, var(--ink) 22%, transparent);
+  color: var(--ink);
+}
 
 /* Focus-visible */
 :focus-visible { outline: 2px solid oklch(0.22 0.01 60 / 0.5); outline-offset: 2px; border-radius: 6px; }

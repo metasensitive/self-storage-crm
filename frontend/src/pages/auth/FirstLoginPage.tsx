@@ -5,10 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { profileApi } from '@/api/profile';
-import { Button, Field, IconButton, Input } from '@/components/ui';
+import { Button, Field, IconButton, Input, useToast } from '@/components/ui';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
-import { setToken } from '@/api/client';
 
 const schema = z
   .object({
@@ -28,8 +27,9 @@ const schema = z
 type Values = z.infer<typeof schema>;
 
 export default function FirstLoginPage() {
-  const { user, markPasswordChanged, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
@@ -51,15 +51,24 @@ export default function FirstLoginPage() {
   const newPassword = watch('new_password') ?? '';
 
   async function onSubmit(values: Values) {
+    if (!user) return;
     try {
       await profileApi.changePassword(values);
-      // Бэк после смены пароля инвалидирует все токены пользователя.
-      // Это значит, что текущий токен в localStorage уже не работает.
-      // Чисто очищаем state и просим войти с новым паролем.
-      setToken(null);
-      markPasswordChanged();
-      // Полный logout не нужен — токен уже мёртв на сервере.
-      navigate('/login', { replace: true, state: { resetSuccess: true } });
+      // Бэк после смены пароля инвалидирует все токены — текущий уже мёртв.
+      // Чтобы пользователь не вводил пароль повторно, сразу выполняем login
+      // с новым паролем: получаем свежий токен и обновляем AuthContext.
+      // detectMustChangePassword вернёт false (updated_at теперь позже created_at),
+      // поэтому ProtectedRoute пустит дальше.
+      try {
+        await login(user.email, values.new_password);
+      } catch {
+        // Если автологин не удался (что маловероятно сразу после смены) —
+        // мягко уводим на форму входа с понятным сообщением.
+        navigate('/login', { replace: true, state: { resetSuccess: true } });
+        return;
+      }
+      toast.success('Пароль обновлён');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       const message = applyApiErrors<Values>(err, setError, [
         'current_password',
