@@ -407,14 +407,20 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .modal .card-head {
   flex: none;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--line);
 }
 .modal .card-body {
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
+  padding: 22px;
 }
-.modal .card-foot { flex: none; }
+.modal .card-foot {
+  flex: none;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+}
 @media (max-width: 600px) {
   .modal-back { padding: 12px; }
   .modal { max-height: calc(100vh - 24px); }
