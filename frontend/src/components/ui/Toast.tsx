@@ -28,6 +28,14 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+// Глобальный мост — позволяет показывать toast из мест вне React-дерева
+// (например, из обработчиков ошибок QueryClient).
+let globalToast: ToastContextValue | null = null;
+
+export function getGlobalToast(): ToastContextValue | null {
+  return globalToast;
+}
+
 const TONE_STYLE: Record<ToastTone, { bg: string; bd: string; fg: string; icon: IconName }> = {
   success: {
     bg: 'oklch(0.96 0.04 150)',
@@ -82,6 +90,13 @@ export function ToastProvider({ children }: ToastProviderProps) {
     }),
     [show],
   );
+
+  useEffect(() => {
+    globalToast = value;
+    return () => {
+      if (globalToast === value) globalToast = null;
+    };
+  }, [value]);
 
   return (
     <ToastContext.Provider value={value}>
@@ -157,5 +172,3 @@ export function useToastError() {
   );
 }
 
-// Заглушка чтобы не было unused import при удалении useEffect выше
-void useEffect;
