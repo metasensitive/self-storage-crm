@@ -29,10 +29,19 @@ export function registerUnauthorizedHandler(handler: UnauthorizedHandler | null)
   onUnauthorized = handler;
 }
 
+function networkErrorMessage(err: AxiosError): string {
+  if (err.code === 'ECONNABORTED') return 'Превышено время ожидания запроса';
+  // Если ответ не пришёл вовсе — это network/CORS-ошибка
+  if (!err.response) {
+    return 'Не удалось связаться с сервером. Проверьте, что бэкенд запущен и доступен';
+  }
+  return err.message || 'Сетевая ошибка';
+}
+
 function toApiError(err: AxiosError<ApiErrorBody>): ApiError {
   const status = err.response?.status ?? 0;
   const body: ApiErrorBody = err.response?.data ?? {
-    message: err.message || 'Сетевая ошибка',
+    message: networkErrorMessage(err),
   };
   const apiError = new Error(body.message) as ApiError;
   apiError.name = 'ApiError';
