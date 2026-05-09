@@ -38,17 +38,22 @@ interface AuthProviderProps {
 }
 
 /**
- * Эвристика: если updated_at равен created_at (с допуском 2 секунды) — пользователь
- * никогда не входил в систему / не менял пароль.
- * После любой смены (через смену пароля или /profile update) Laravel обновляет updated_at,
+ * Эвристика: если updated_at не отличается от created_at — пользователь
+ * никогда не менял пароль (admin только что создал учётку).
+ * После любой смены пароля или обновления профиля Laravel обновляет updated_at,
  * и юзер становится «активным».
+ *
+ * Сравниваем строкой (ISO timestamps идентичны при одновременной установке)
+ * и через timestamps с допуском 60 сек на случай микросекундных расхождений
+ * или второго save при создании.
  */
-function detectMustChangePassword(u: User | null): boolean {
+export function detectMustChangePassword(u: User | null): boolean {
   if (!u || !u.created_at || !u.updated_at) return false;
-  const created = new Date(u.created_at).getTime();
-  const updated = new Date(u.updated_at).getTime();
+  if (u.created_at === u.updated_at) return true;
+  const created = Date.parse(u.created_at);
+  const updated = Date.parse(u.updated_at);
   if (Number.isNaN(created) || Number.isNaN(updated)) return false;
-  return Math.abs(updated - created) < 2000;
+  return Math.abs(updated - created) < 60_000;
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
