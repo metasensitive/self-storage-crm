@@ -20,6 +20,7 @@ type LoginValues = z.infer<typeof schema>;
 
 interface LocationState {
   from?: string;
+  resetSuccess?: boolean;
 }
 
 export default function LoginPage() {
@@ -28,6 +29,8 @@ export default function LoginPage() {
   const location = useLocation();
   const [showPw, setShowPw] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const state = location.state as LocationState | null;
+  const resetSuccess = state?.resetSuccess === true;
 
   const {
     register,
@@ -43,7 +46,7 @@ export default function LoginPage() {
     setGlobalError(null);
     try {
       await login(values.email, values.password);
-      const from = (location.state as LocationState | null)?.from ?? '/dashboard';
+      const from = state?.from ?? '/dashboard';
       navigate(from, { replace: true });
     } catch (err) {
       const message = applyApiErrors<LoginValues>(err, setError, ['email', 'password']);
@@ -58,6 +61,22 @@ export default function LoginPage() {
       <p className="muted mt-2 t-body">
         Войдите в панель оператора, чтобы управлять локациями, контейнерами и арендами.
       </p>
+
+      {resetSuccess && (
+        <div
+          className="t-small mt-6"
+          role="status"
+          style={{
+            padding: '10px 14px',
+            border: '1px solid oklch(0.88 0.05 150)',
+            borderRadius: 'var(--r-md)',
+            background: 'oklch(0.96 0.04 150)',
+            color: 'oklch(0.32 0.10 150)',
+          }}
+        >
+          Пароль изменён. Войдите с новым паролем.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="col gap-3 mt-6">
         <Field label="Email" error={errors.email?.message}>
