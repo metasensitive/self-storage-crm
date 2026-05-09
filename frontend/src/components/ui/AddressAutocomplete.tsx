@@ -209,7 +209,12 @@ export function AddressAutocomplete({
                 aria-selected={i === activeIdx}
                 className="suggest-item"
                 onMouseEnter={() => setActiveIdx(i)}
-                onClick={() => pick(s)}
+                // mousedown срабатывает до blur input'а и до закрытия по mousedown-listener'у,
+                // preventDefault не даёт инпуту потерять фокус — выбор гарантированно завершится.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(s);
+                }}
                 data-active={i === activeIdx ? 'true' : 'false'}
               >
                 <div className="t-body" style={{ fontWeight: 500 }}>
