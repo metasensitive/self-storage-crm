@@ -260,6 +260,11 @@ export default function UsersPage() {
         <EditUserModal
           user={editing}
           isMe={me?.id === editing.id}
+          // Админ не может менять данные другого админа.
+          // Менеджеров и себя — может (роль для себя disabled отдельно).
+          readOnly={
+            me?.role === 'admin' && editing.role === 'admin' && me.id !== editing.id
+          }
           onClose={() => setEditing(null)}
           onSuccess={() => {
             setEditing(null);
@@ -398,11 +403,13 @@ function CreateUserModal({ onClose, onSuccess }: CreateProps) {
 interface EditProps {
   user: User;
   isMe: boolean;
+  /** Если true — все поля заблокированы, форма работает в режиме просмотра. */
+  readOnly: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
+function EditUserModal({ user, isMe, readOnly, onClose, onSuccess }: EditProps) {
   const toast = useToast();
 
   const {
@@ -420,6 +427,7 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
   });
 
   async function onSubmit(values: EditValues) {
+    if (readOnly) return;
     try {
       const payload: UpdateUserPayload = {
         name: values.name,
@@ -435,44 +443,35 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
     }
   }
 
+  const banner = readOnly
+    ? 'Вы не можете изменять данные другого администратора. Попросите его обновить профиль самостоятельно.'
+    : isMe
+      ? 'Это ваш аккаунт. Роль изменить нельзя — для смены пароля используйте раздел «Профиль».'
+      : 'Пароль сотрудника здесь изменить нельзя. Если требуется сброс — попросите его воспользоваться функцией «Забыли пароль» на экране входа.';
+
   return (
     <Modal open onClose={onClose} title={`Редактировать: ${user.name}`} width={560}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="col gap-3">
-        {isMe ? (
-          <div
-            className="t-small"
-            style={{
-              padding: '8px 12px',
-              border: '1px dashed var(--line-2)',
-              borderRadius: 'var(--r-md)',
-              color: 'var(--ink-3)',
-            }}
-          >
-            Это ваш аккаунт. Роль изменить нельзя — для смены пароля используйте раздел
-            «Профиль».
-          </div>
-        ) : (
-          <div
-            className="t-small"
-            style={{
-              padding: '8px 12px',
-              border: '1px dashed var(--line-2)',
-              borderRadius: 'var(--r-md)',
-              color: 'var(--ink-3)',
-            }}
-          >
-            Пароль сотрудника здесь изменить нельзя. Если требуется сброс — попросите его
-            воспользоваться функцией «Забыли пароль» на экране входа.
-          </div>
-        )}
+        <div
+          className="t-small"
+          style={{
+            padding: '8px 12px',
+            border: '1px dashed var(--line-2)',
+            borderRadius: 'var(--r-md)',
+            color: 'var(--ink-3)',
+          }}
+        >
+          {banner}
+        </div>
+
         <Field label="Имя" error={errors.name?.message}>
-          <Input {...register('name')} />
+          <Input disabled={readOnly} {...register('name')} />
         </Field>
         <Field label="Email" error={errors.email?.message}>
-          <Input type="email" {...register('email')} />
+          <Input type="email" disabled={readOnly} {...register('email')} />
         </Field>
         <Field label="Роль" error={errors.role?.message}>
-          <Select disabled={isMe} {...register('role')}>
+          <Select disabled={isMe || readOnly} {...register('role')}>
             <option value="manager">Менеджер</option>
             <option value="admin">Администратор</option>
           </Select>
@@ -480,11 +479,13 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
 
         <div className="row gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
           <Button variant="ghost" onClick={onClose} type="button">
-            Отмена
+            {readOnly ? 'Закрыть' : 'Отмена'}
           </Button>
-          <Button type="submit" variant="primary" icon="check" loading={isSubmitting}>
-            Сохранить
-          </Button>
+          {!readOnly && (
+            <Button type="submit" variant="primary" icon="check" loading={isSubmitting}>
+              Сохранить
+            </Button>
+          )}
         </div>
       </form>
     </Modal>
