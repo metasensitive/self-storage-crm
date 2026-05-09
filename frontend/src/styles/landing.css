@@ -1,5 +1,11 @@
 /* ===== Landing page styles ===== */
 
+/* Плавная прокрутка по якорям + смещение под sticky nav (~76px) */
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
 .lp-shell { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
 
 /* ===== NAV ===== */

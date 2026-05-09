@@ -3,6 +3,7 @@ import { Avatar } from './ui/Avatar';
 import { IconButton } from './ui/Button';
 import { Ic, type IconName } from './Ic';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTweaks } from '@/hooks/useTweaks';
 import type { Role } from '@/api/types';
 
 interface NavItem {
@@ -24,9 +25,13 @@ const NAV: NavItem[] = [
 
 export function Sidebar() {
   const { user, role, logout } = useAuth();
+  const { tweaks, setTweak } = useTweaks();
   const navigate = useNavigate();
 
   if (!user || !role) return null;
+
+  const isDark = tweaks.theme === 'dark';
+  const toggleTheme = () => setTweak('theme', isDark ? 'light' : 'dark');
 
   const visible = NAV.filter((n) => n.roles.includes(role));
 
@@ -92,6 +97,11 @@ export function Sidebar() {
               {user.email}
             </div>
           </div>
+          <IconButton
+            icon={isDark ? 'sun' : 'moon'}
+            label={isDark ? 'Светлая тема' : 'Тёмная тема'}
+            onClick={toggleTheme}
+          />
           <IconButton icon="logout" label="Выйти" onClick={handleLogout} />
         </div>
       </div>
