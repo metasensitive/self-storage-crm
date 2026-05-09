@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { LoadingState } from './ui/LoadingState';
 
 export function ProtectedRoute() {
-  const { user, status } = useAuth();
+  const { user, status, mustChangePassword } = useAuth();
   const location = useLocation();
 
   if (status !== 'ready') {
@@ -16,6 +16,12 @@ export function ProtectedRoute() {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+
+  // Клиентский gate: если временный пароль ещё не сменён — пускаем
+  // только на /first-login. Это UX-механика; серьёзная защита требует флаг на бэке.
+  if (mustChangePassword && location.pathname !== '/first-login') {
+    return <Navigate to="/first-login" replace />;
   }
 
   return <Outlet />;

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAuth } from '@/contexts/AuthContext';
+import { detectMustChangePassword, useAuth } from '@/contexts/AuthContext';
 import { Button, Field, IconButton, Input } from '@/components/ui';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 
@@ -45,7 +45,13 @@ export default function LoginPage() {
   async function onSubmit(values: LoginValues) {
     setGlobalError(null);
     try {
-      await login(values.email, values.password);
+      const u = await login(values.email, values.password);
+      // Если пользователь ещё не менял пароль — сразу на /first-login,
+      // не полагаясь на race с ProtectedRoute и обновлением state.
+      if (detectMustChangePassword(u)) {
+        navigate('/first-login', { replace: true });
+        return;
+      }
       const from = state?.from ?? '/dashboard';
       navigate(from, { replace: true });
     } catch (err) {

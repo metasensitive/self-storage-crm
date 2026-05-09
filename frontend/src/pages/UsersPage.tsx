@@ -15,12 +15,28 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { useToast, useToastError } from '@/components/ui/Toast';
 import { StatusBadge } from '@/components/StatusBadge';
+import { Ic } from '@/components/Ic';
 import { useAuth } from '@/contexts/AuthContext';
 import { usersApi, type CreateUserPayload, type UpdateUserPayload } from '@/api/users';
 import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
+import { copyToClipboard, generateTempPassword } from '@/lib/password';
 import { fmtDate } from '@/lib/format';
 import type { Role, User } from '@/api/types';
+
+/**
+ * Эвристика «Ожидает входа»: при создании Laravel выставляет created_at == updated_at.
+ * После любой смены пароля или обновления профиля updated_at становится позже —
+ * допуск 200 мс ловит только микросекундные расхождения сохранения, не реальные интервалы.
+ */
+function isPendingFirstLogin(u: User): boolean {
+  if (!u.created_at || !u.updated_at) return false;
+  if (u.created_at === u.updated_at) return true;
+  const created = Date.parse(u.created_at);
+  const updated = Date.parse(u.updated_at);
+  if (Number.isNaN(created) || Number.isNaN(updated)) return false;
+  return Math.abs(updated - created) < 200;
+}
 
 const baseSchema = {
   name: z.string().min(1, 'Имя обязательно').max(100, 'Максимум 100 символов'),
@@ -56,6 +72,9 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<User | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<
+    { name: string; email: string; password: string } | null
+  >(null);
 
   const listQ = useQuery({
     queryKey: queryKeys.users.list({ page }),
@@ -122,6 +141,7 @@ export default function UsersPage() {
                   <th>Сотрудник</th>
                   <th>Email</th>
                   <th>Роль</th>
+                  <th>Статус</th>
                   <th>Создан</th>
                   <th></th>
                 </tr>
@@ -155,6 +175,19 @@ export default function UsersPage() {
                       </td>
                       <td>
                         <StatusBadge kind="role" status={u.role} />
+                      </td>
+                      <td>
+                        {isPendingFirstLogin(u) ? (
+                          <span className="badge reserved" title="Не входил в систему / не сменил пароль">
+                            <span className="dot" />
+                            Ожидает входа
+                          </span>
+                        ) : (
+                          <span className="badge active">
+                            <span className="dot" />
+                            Активен
+                          </span>
+                        )}
                       </td>
                       <td className="t-small">{fmtDate(u.created_at)}</td>
                       <td onClick={(e) => e.stopPropagation()}>
@@ -211,11 +244,19 @@ export default function UsersPage() {
       {creating && (
         <CreateUserModal
           onClose={() => setCreating(false)}
-          onSuccess={() => {
+          onSuccess={(creds) => {
             setCreating(false);
-            toast.success('Сотрудник создан');
             invalidate();
+            // Показываем «карточку учётки»: email + временный пароль с возможностью копировать
+            setCreatedCredentials(creds);
           }}
+        />
+      )}
+
+      {createdCredentials && (
+        <NewUserCredentialsModal
+          credentials={createdCredentials}
+          onClose={() => setCreatedCredentials(null)}
         />
       )}
 
@@ -262,7 +303,7 @@ export default function UsersPage() {
 
 interface CreateProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (creds: { name: string; email: string; password: string }) => void;
 }
 
 function CreateUserModal({ onClose, onSuccess }: CreateProps) {
@@ -273,17 +314,24 @@ function CreateUserModal({ onClose, onSuccess }: CreateProps) {
     register,
     handleSubmit,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
     defaultValues: { name: '', email: '', password: '', role: 'manager' },
   });
 
+  function fillGenerated() {
+    const pw = generateTempPassword();
+    setValue('password', pw, { shouldValidate: true, shouldDirty: true });
+    setShowPw(true);
+  }
+
   async function onSubmit(values: CreateValues) {
     try {
       const payload: CreateUserPayload = values;
       await usersApi.create(payload);
-      onSuccess();
+      onSuccess({ name: values.name, email: values.email, password: values.password });
     } catch (err) {
       const message = applyApiErrors<CreateValues>(err, setError);
       if (message) toast.error(message);
@@ -300,25 +348,35 @@ function CreateUserModal({ onClose, onSuccess }: CreateProps) {
           <Input type="email" placeholder="user@company.com" {...register('email')} />
         </Field>
         <Field
-          label="Пароль"
+          label="Временный пароль"
           error={errors.password?.message}
-          hint="От 8 до 32 символов"
+          hint="Сгенерируйте автоматически или задайте вручную (8–32 символа). Сотрудник сменит его при первом входе."
         >
-          <div style={{ position: 'relative' }}>
-            <Input
-              type={showPw ? 'text' : 'password'}
-              autoComplete="new-password"
-              placeholder="••••••••"
-              style={{ paddingRight: 38 }}
-              {...register('password')}
-            />
-            <IconButton
-              icon={showPw ? 'eye_off' : 'eye'}
-              label={showPw ? 'Скрыть' : 'Показать'}
-              onClick={() => setShowPw((v) => !v)}
-              tabIndex={-1}
-              style={{ position: 'absolute', right: 4, top: 4 }}
-            />
+          <div className="row gap-2" style={{ alignItems: 'stretch' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Input
+                type={showPw ? 'text' : 'password'}
+                autoComplete="new-password"
+                placeholder="••••••••"
+                style={{ paddingRight: 38, fontFamily: 'var(--mono)' }}
+                {...register('password')}
+              />
+              <IconButton
+                icon={showPw ? 'eye_off' : 'eye'}
+                label={showPw ? 'Скрыть' : 'Показать'}
+                onClick={() => setShowPw((v) => !v)}
+                tabIndex={-1}
+                style={{ position: 'absolute', right: 4, top: 4 }}
+              />
+            </div>
+            <Button
+              type="button"
+              icon="sparkle"
+              onClick={fillGenerated}
+              title="Сгенерировать временный пароль"
+            >
+              Сгенерировать
+            </Button>
           </div>
         </Field>
         <Field label="Роль" error={errors.role?.message}>
@@ -448,5 +506,134 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
         </div>
       </form>
     </Modal>
+  );
+}
+
+interface CredentialsProps {
+  credentials: { name: string; email: string; password: string };
+  onClose: () => void;
+}
+
+function NewUserCredentialsModal({ credentials, onClose }: CredentialsProps) {
+  const toast = useToast();
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  async function copy(field: string, value: string) {
+    const ok = await copyToClipboard(value);
+    if (ok) {
+      setCopiedField(field);
+      toast.success('Скопировано в буфер');
+      window.setTimeout(() => setCopiedField((c) => (c === field ? null : c)), 1800);
+    } else {
+      toast.error('Не удалось скопировать');
+    }
+  }
+
+  const both = `Email: ${credentials.email}\nПароль: ${credentials.password}`;
+
+  return (
+    <Modal open onClose={onClose} title="Сотрудник создан" width={520}>
+      <p className="t-body">
+        Аккаунт <strong>{credentials.name}</strong> готов. Передайте сотруднику его учётные данные —
+        при первом входе он установит свой постоянный пароль.
+      </p>
+
+      <div
+        className="col gap-3 mt-4"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          padding: 16,
+          background: 'var(--bg-muted)',
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--r-md)',
+        }}
+      >
+        <CredentialRow
+          label="Email"
+          value={credentials.email}
+          copied={copiedField === 'email'}
+          onCopy={() => copy('email', credentials.email)}
+        />
+        <CredentialRow
+          label="Временный пароль"
+          value={credentials.password}
+          mono
+          copied={copiedField === 'password'}
+          onCopy={() => copy('password', credentials.password)}
+        />
+      </div>
+
+      <div
+        className="row gap-2 t-small mt-4"
+        style={{
+          padding: '10px 14px',
+          border: '1px dashed var(--line-2)',
+          borderRadius: 'var(--r-md)',
+          color: 'var(--ink-2)',
+          alignItems: 'flex-start',
+        }}
+      >
+        <Ic name="info" size={14} />
+        <span>
+          Этот пароль больше не будет показан. Скопируйте его сейчас — после закрытия окна получить
+          его снова можно будет только через сброс.
+        </span>
+      </div>
+
+      <div
+        className="row gap-2 mt-4"
+        style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}
+      >
+        <Button icon="download" onClick={() => copy('both', both)}>
+          Скопировать всё
+        </Button>
+        <Button variant="primary" icon="check" onClick={onClose}>
+          Понятно
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+interface CredentialRowProps {
+  label: string;
+  value: string;
+  copied: boolean;
+  mono?: boolean;
+  onCopy: () => void;
+}
+
+function CredentialRow({ label, value, copied, mono, onCopy }: CredentialRowProps) {
+  return (
+    <div className="col gap-1" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span className="t-micro">{label}</span>
+      <div className="row gap-2" style={{ alignItems: 'center' }}>
+        <code
+          style={{
+            flex: 1,
+            padding: '8px 12px',
+            background: 'var(--bg-elev)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r-sm)',
+            fontFamily: mono ? 'var(--mono)' : 'inherit',
+            fontSize: 14,
+            wordBreak: 'break-all',
+            userSelect: 'all',
+          }}
+        >
+          {value}
+        </code>
+        <Button
+          size="sm"
+          icon={copied ? 'check' : 'download'}
+          onClick={onCopy}
+          variant={copied ? 'primary' : 'default'}
+        >
+          {copied ? 'Скопировано' : 'Копировать'}
+        </Button>
+      </div>
+    </div>
   );
 }

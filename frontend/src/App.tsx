@@ -10,6 +10,7 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+import FirstLoginPage from './pages/auth/FirstLoginPage';
 import DashboardPage from './pages/DashboardPage';
 import LocationsPage from './pages/LocationsPage';
 import ContainersPage from './pages/ContainersPage';
@@ -37,6 +38,10 @@ export default function App() {
           </Route>
 
           <Route element={<ProtectedRoute />}>
+            <Route element={<AuthLayout />}>
+              <Route path="/first-login" element={<FirstLoginPage />} />
+            </Route>
+
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/locations" element={<LocationsPage />} />
