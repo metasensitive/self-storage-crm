@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -71,6 +72,7 @@ export default function UnitsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const toastError = useToastError();
+  const navigate = useNavigate();
 
   const [mode, setMode] = useState<'table' | 'grid'>('table');
   const [page, setPage] = useState(1);
@@ -494,12 +496,11 @@ export default function UnitsPage() {
                         size="sm"
                         variant="primary"
                         icon="plus"
-                        onClick={() => {
-                          // Полная модалка аренды — Stage 12
-                          toast.info(
-                            'Оформление аренды появится на странице «Аренды» (следующий этап).',
-                          );
-                        }}
+                        onClick={() =>
+                          navigate('/rents', {
+                            state: { openCreate: true, unitId: drawerUnit.id },
+                          })
+                        }
                       >
                         Оформить аренду
                       </Button>
