@@ -14,6 +14,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Drawer, DrawerBody, DrawerFoot, DrawerHead } from '@/components/ui/Drawer';
 import { useToast, useToastError } from '@/components/ui/Toast';
+import { AddressAutocomplete, type AddressSuggestion } from '@/components/ui/AddressAutocomplete';
 import { StatusBadge } from '@/components/StatusBadge';
 import { SegmentBar } from '@/components/charts/SegmentBar';
 import { Ic } from '@/components/Ic';
@@ -27,16 +28,6 @@ import type { Location, LocationStatus } from '@/api/types';
 
 const schema = z.object({
   name: z.string().min(2, 'Минимум 2 символа').max(255, 'Максимум 255 символов'),
-  city: z.string().min(2, 'Минимум 2 символа').max(100, 'Максимум 100 символов'),
-  address: z.string().min(5, 'Минимум 5 символов').max(500, 'Максимум 500 символов'),
-  latitude: z
-    .number({ invalid_type_error: 'Введите число' })
-    .min(-90, 'От -90 до 90')
-    .max(90, 'От -90 до 90'),
-  longitude: z
-    .number({ invalid_type_error: 'Введите число' })
-    .min(-180, 'От -180 до 180')
-    .max(180, 'От -180 до 180'),
   status: z.enum(['active', 'inactive']),
 });
 
@@ -477,6 +468,19 @@ interface FormModalProps {
 
 function LocationFormModal({ open, mode, location, onClose, onSuccess }: FormModalProps) {
   const toast = useToast();
+  const [picked, setPicked] = useState<AddressSuggestion | null>(
+    location
+      ? {
+          id: 'preset',
+          displayName: `${location.address}, ${location.city}`,
+          city: location.city,
+          address: location.address,
+          latitude: location.latitude ?? 0,
+          longitude: location.longitude ?? 0,
+        }
+      : null,
+  );
+  const [addressTouched, setAddressTouched] = useState(false);
 
   const {
     register,
@@ -486,27 +490,22 @@ function LocationFormModal({ open, mode, location, onClose, onSuccess }: FormMod
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: location
-      ? {
-          name: location.name,
-          city: location.city,
-          address: location.address,
-          latitude: location.latitude ?? 0,
-          longitude: location.longitude ?? 0,
-          status: location.status,
-        }
-      : {
-          name: '',
-          city: '',
-          address: '',
-          latitude: 55.751244,
-          longitude: 37.618423,
-          status: 'active',
-        },
+      ? { name: location.name, status: location.status }
+      : { name: '', status: 'active' },
   });
 
   async function onSubmit(values: FormValues) {
+    setAddressTouched(true);
+    if (!picked) return; // адрес обязателен — но валидируем вне Zod
     try {
-      const payload: LocationPayload = values;
+      const payload: LocationPayload = {
+        name: values.name,
+        status: values.status,
+        city: picked.city,
+        address: picked.address,
+        latitude: picked.latitude,
+        longitude: picked.longitude,
+      };
       const saved =
         mode === 'create'
           ? await locationsApi.create(payload)
@@ -523,36 +522,28 @@ function LocationFormModal({ open, mode, location, onClose, onSuccess }: FormMod
       open={open}
       onClose={onClose}
       title={mode === 'create' ? 'Новая локация' : 'Редактировать локацию'}
-      width={560}
+      width={620}
     >
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="col gap-3">
         <Field label="Название" error={errors.name?.message}>
           <Input placeholder="ЖК Маяк" {...register('name')} />
         </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-          <Field label="Город" error={errors.city?.message}>
-            <Input placeholder="Москва" {...register('city')} />
-          </Field>
-          <Field label="Адрес" error={errors.address?.message}>
-            <Input placeholder="ул. Ленина, 12" {...register('address')} />
-          </Field>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label="Широта" error={errors.latitude?.message}>
-            <Input
-              type="number"
-              step="0.000001"
-              {...register('latitude', { valueAsNumber: true })}
-            />
-          </Field>
-          <Field label="Долгота" error={errors.longitude?.message}>
-            <Input
-              type="number"
-              step="0.000001"
-              {...register('longitude', { valueAsNumber: true })}
-            />
-          </Field>
-        </div>
+
+        <Field
+          label="Адрес"
+          hint="Город и координаты подтянутся автоматически"
+          error={addressTouched && !picked ? 'Выберите адрес из подсказок' : undefined}
+        >
+          <AddressAutocomplete
+            value={picked}
+            onChange={(s) => {
+              setPicked(s);
+              setAddressTouched(false);
+            }}
+            countryCodes={['ru']}
+          />
+        </Field>
+
         <Field label="Статус" error={errors.status?.message}>
           <Select {...register('status')}>
             <option value="active">Активна</option>
