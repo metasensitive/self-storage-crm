@@ -15,7 +15,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { analyticsApi } from '@/api/analytics';
 import { locationsApi } from '@/api/locations';
 import { rentsApi } from '@/api/rents';
+import { containersApi } from '@/api/containers';
 import { queryKeys } from '@/lib/queryKeys';
+import { buildContainerMap } from '@/lib/enrich';
 import { fmtDate, fmtMoney, pluralize } from '@/lib/format';
 import type { Rent } from '@/api/types';
 
@@ -61,6 +63,16 @@ export default function DashboardPage() {
     queryKey: queryKeys.rents.list({ status: 'active', page: 1 }),
     queryFn: () => rentsApi.list({ status: 'active', page: 1 }),
   });
+
+  const containersQ = useQuery({
+    queryKey: queryKeys.containers.list({ all: true }),
+    queryFn: () => containersApi.list({ page: 1 }),
+  });
+
+  const containerMap = useMemo(
+    () => buildContainerMap(containersQ.data?.data ?? []),
+    [containersQ.data],
+  );
 
   // Аналитика для топ-5 локаций — параллельные запросы
   const topLocations = locationsQ.data?.data.slice(0, 5) ?? [];
@@ -382,8 +394,9 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {expiringRents.map(({ rent, days }) => {
-                      const c = rent.unit?.container;
-                      const loc = c?.location;
+                      const cont = containerMap.get(rent.unit?.container?.id ?? -1);
+                      const code = cont?.code ?? rent.unit?.container?.code;
+                      const loc = cont?.location ?? rent.unit?.container?.location;
                       const dayLabel =
                         days === 0
                           ? 'сегодня'
@@ -394,7 +407,7 @@ export default function DashboardPage() {
                         <tr key={rent.id}>
                           <td>
                             <span className="mono">
-                              {c?.code ?? '—'} / {rent.unit?.number ?? '—'}
+                              {code ? `${code} / ` : ''}#{rent.unit?.number ?? '—'}
                             </span>
                           </td>
                           <td>

@@ -25,6 +25,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtMoney } from '@/lib/format';
+import { buildContainerMap } from '@/lib/enrich';
 import type { Unit, UnitStatus } from '@/api/types';
 
 const STATUS_OPTIONS: Array<{ value: UnitStatus | 'all'; label: string }> = [
@@ -116,6 +117,11 @@ export default function UnitsPage() {
     if (!q) return items;
     return items.filter((u) => String(u.number).includes(q));
   }, [items, search]);
+
+  const containerMap = useMemo(
+    () => buildContainerMap(containersListQ.data?.data ?? []),
+    [containersListQ.data],
+  );
 
   const drawerRentsQ = useQuery({
     queryKey: drawerUnit
@@ -340,32 +346,37 @@ export default function UnitsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((u) => (
-                  <tr key={u.id} onClick={() => setDrawerUnit(u)}>
-                    <td className="mono">#{u.number}</td>
-                    <td>
-                      <span className="mono">{u.container?.code ?? '—'}</span>
-                    </td>
-                    <td>
-                      {u.container?.location ? (
-                        <div className="col">
-                          <span style={{ fontWeight: 500 }}>{u.container.location.name}</span>
-                          <span className="t-small">{u.container.location.city}</span>
-                        </div>
-                      ) : (
-                        <span className="dim">—</span>
-                      )}
-                    </td>
-                    <td className="num tnum">{u.size} м²</td>
-                    <td className="num tnum">{fmtMoney(u.price)}</td>
-                    <td>
-                      <StatusBadge kind="unit" status={u.status} />
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <IconButton icon="chev_r" label="Открыть" onClick={() => setDrawerUnit(u)} />
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((u) => {
+                  const cont = containerMap.get(u.container?.id ?? -1);
+                  const loc = cont?.location ?? u.container?.location;
+                  const code = cont?.code ?? u.container?.code;
+                  return (
+                    <tr key={u.id} onClick={() => setDrawerUnit(u)}>
+                      <td className="mono">#{u.number}</td>
+                      <td>
+                        <span className="mono">{code ?? '—'}</span>
+                      </td>
+                      <td>
+                        {loc ? (
+                          <div className="col">
+                            <span style={{ fontWeight: 500 }}>{loc.name}</span>
+                            <span className="t-small">{loc.city}</span>
+                          </div>
+                        ) : (
+                          <span className="dim">—</span>
+                        )}
+                      </td>
+                      <td className="num tnum">{u.size} м²</td>
+                      <td className="num tnum">{fmtMoney(u.price)}</td>
+                      <td>
+                        <StatusBadge kind="unit" status={u.status} />
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <IconButton icon="chev_r" label="Открыть" onClick={() => setDrawerUnit(u)} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -410,14 +421,18 @@ export default function UnitsPage() {
                   <StatusBadge kind="unit" status={drawerUnit.status} />
                 </div>
                 <span className="h-display-sm mono">#{drawerUnit.number}</span>
-                {drawerUnit.container && (
-                  <span className="muted t-small">
-                    {drawerUnit.container.code}
-                    {drawerUnit.container.location
-                      ? ` · ${drawerUnit.container.location.name}, ${drawerUnit.container.location.city}`
-                      : ''}
-                  </span>
-                )}
+                {(() => {
+                  const cont = containerMap.get(drawerUnit.container?.id ?? -1);
+                  const code = cont?.code ?? drawerUnit.container?.code;
+                  const loc = cont?.location ?? drawerUnit.container?.location;
+                  if (!code) return null;
+                  return (
+                    <span className="muted t-small">
+                      {code}
+                      {loc ? ` · ${loc.name}, ${loc.city}` : ''}
+                    </span>
+                  );
+                })()}
               </div>
               <IconButton icon="close" label="Закрыть" onClick={() => setDrawerUnit(null)} />
             </DrawerHead>

@@ -20,10 +20,12 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { rentsApi } from '@/api/rents';
 import { unitsApi } from '@/api/units';
 import { locationsApi } from '@/api/locations';
+import { containersApi } from '@/api/containers';
 import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
+import { buildContainerMap } from '@/lib/enrich';
 import { fmtDate, fmtMoney, pluralize } from '@/lib/format';
-import type { Rent, RentStatus, Unit } from '@/api/types';
+import type { Container, Rent, RentStatus, Unit } from '@/api/types';
 
 const STATUS_OPTIONS: Array<{ value: RentStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Все статусы' },
@@ -79,6 +81,16 @@ export default function RentsPage() {
     queryKey: queryKeys.locations.list({ all: true }),
     queryFn: () => locationsApi.list({ page: 1 }),
   });
+
+  const containersQ = useQuery({
+    queryKey: queryKeys.containers.list({ all: true }),
+    queryFn: () => containersApi.list({ page: 1 }),
+  });
+
+  const containerMap = useMemo(
+    () => buildContainerMap(containersQ.data?.data ?? []),
+    [containersQ.data],
+  );
 
   const items = useMemo(() => listQ.data?.data ?? [], [listQ.data]);
   const meta = listQ.data?.meta;
@@ -187,14 +199,16 @@ export default function RentsPage() {
               </thead>
               <tbody>
                 {items.map((r) => {
-                  const c = r.unit?.container;
-                  const loc = c?.location;
+                  const cont = containerMap.get(r.unit?.container?.id ?? -1);
+                  const code = cont?.code ?? r.unit?.container?.code;
+                  const loc = cont?.location ?? r.unit?.container?.location;
                   const days = dayjs(r.date_to).diff(dayjs(r.date_from), 'day') + 1;
                   return (
                     <tr key={r.id} onClick={() => setDrawerRent(r)}>
                       <td>
                         <span className="mono">
-                          {c?.code ?? '—'} / #{r.unit?.number ?? '—'}
+                          {code ? `${code} / ` : ''}
+                          #{r.unit?.number ?? '—'}
                         </span>
                       </td>
                       <td>
@@ -263,6 +277,7 @@ export default function RentsPage() {
         {drawerRent && (
           <RentDrawerContent
             rent={drawerRent}
+            containerMap={containerMap}
             onClose={() => setDrawerRent(null)}
             onFinish={() => finishMut.mutate(drawerRent.id)}
             finishing={finishMut.isPending}
@@ -288,14 +303,16 @@ export default function RentsPage() {
 
 interface RentDrawerProps {
   rent: Rent;
+  containerMap: Map<number, Container>;
   onClose: () => void;
   onFinish: () => void;
   finishing: boolean;
 }
 
-function RentDrawerContent({ rent, onClose, onFinish, finishing }: RentDrawerProps) {
-  const c = rent.unit?.container;
-  const loc = c?.location;
+function RentDrawerContent({ rent, containerMap, onClose, onFinish, finishing }: RentDrawerProps) {
+  const cont = containerMap.get(rent.unit?.container?.id ?? -1);
+  const code = cont?.code ?? rent.unit?.container?.code;
+  const loc = cont?.location ?? rent.unit?.container?.location;
   const today = dayjs().startOf('day');
   const from = dayjs(rent.date_from).startOf('day');
   const to = dayjs(rent.date_to).startOf('day');
@@ -313,7 +330,7 @@ function RentDrawerContent({ rent, onClose, onFinish, finishing }: RentDrawerPro
             <StatusBadge kind="rent" status={rent.status} />
           </div>
           <span className="h-display-sm mono">
-            {c?.code ?? '—'} / #{rent.unit?.number ?? '—'}
+            {code ? `${code} / ` : ''}#{rent.unit?.number ?? '—'}
           </span>
           {loc && (
             <span className="muted t-small">
