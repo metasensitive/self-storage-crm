@@ -9,3 +9,4 @@ export { Tabs } from './Tabs';
 export { Empty } from './Empty';
 export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
+export { ToastProvider, useToast, useToastError } from './Toast';
