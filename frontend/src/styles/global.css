@@ -409,6 +409,10 @@ input, select, textarea { font: inherit; color: inherit; }
   flex: none;
   padding: 18px 22px;
   border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 .modal .card-body {
   overflow-y: auto;
