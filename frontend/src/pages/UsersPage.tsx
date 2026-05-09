@@ -26,8 +26,8 @@ import type { Role, User } from '@/api/types';
 
 /**
  * Эвристика «Ожидает входа»: при создании Laravel выставляет created_at == updated_at.
- * После любой смены пароля или обновления профиля updated_at становится позже.
- * Используется единая логика, что и в AuthContext.detectMustChangePassword.
+ * После любой смены пароля или обновления профиля updated_at становится позже —
+ * допуск 200 мс ловит только микросекундные расхождения сохранения, не реальные интервалы.
  */
 function isPendingFirstLogin(u: User): boolean {
   if (!u.created_at || !u.updated_at) return false;
@@ -35,7 +35,7 @@ function isPendingFirstLogin(u: User): boolean {
   const created = Date.parse(u.created_at);
   const updated = Date.parse(u.updated_at);
   if (Number.isNaN(created) || Number.isNaN(updated)) return false;
-  return Math.abs(updated - created) < 60_000;
+  return Math.abs(updated - created) < 200;
 }
 
 const baseSchema = {
