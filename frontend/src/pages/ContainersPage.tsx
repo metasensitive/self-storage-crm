@@ -45,11 +45,6 @@ const schema = z.object({
     .int()
     .positive('Выберите локацию'),
   code: z.string().min(1, 'Код обязателен').max(50, 'Максимум 50 символов'),
-  units_count: z
-    .number({ invalid_type_error: 'Введите число' })
-    .int('Целое число')
-    .min(1, 'Минимум 1')
-    .max(100, 'Максимум 100'),
   status: z.enum(['active', 'inactive', 'maintenance']),
   installed_at: z
     .string()
@@ -476,7 +471,6 @@ function ContainerFormModal({
       ? {
           location_id: container.location?.id ?? 0,
           code: container.code,
-          units_count: container.units_count,
           status: container.status,
           installed_at: container.installed_at
             ? container.installed_at.slice(0, 10)
@@ -485,7 +479,6 @@ function ContainerFormModal({
       : {
           location_id: 0,
           code: '',
-          units_count: 10,
           status: 'active',
           installed_at: undefined,
         },
@@ -493,10 +486,13 @@ function ContainerFormModal({
 
   async function onSubmit(values: FormValues) {
     try {
+      // units_count — обязательное поле бэка; для пользователя оно нерелевантно
+      // (реальное число кладовок считается из их фактического количества).
+      // При создании отправляем 1, при редактировании сохраняем существующее значение.
       const payload: ContainerPayload = {
         location_id: values.location_id,
         code: values.code,
-        units_count: values.units_count,
+        units_count: container?.units_count ?? 1,
         status: values.status,
         installed_at: values.installed_at ?? null,
       };
@@ -529,19 +525,9 @@ function ContainerFormModal({
             ))}
           </Select>
         </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-          <Field label="Код" error={errors.code?.message} hint="Уникальный идентификатор">
-            <Input placeholder="C-001" {...register('code')} />
-          </Field>
-          <Field label="Кладовок" error={errors.units_count?.message} hint="1–100">
-            <Input
-              type="number"
-              min={1}
-              max={100}
-              {...register('units_count', { valueAsNumber: true })}
-            />
-          </Field>
-        </div>
+        <Field label="Код" error={errors.code?.message} hint="Уникальный идентификатор">
+          <Input placeholder="C-001" {...register('code')} />
+        </Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Статус" error={errors.status?.message}>
             <Select {...register('status')}>
