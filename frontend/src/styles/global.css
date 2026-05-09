@@ -141,7 +141,9 @@ input, select, textarea { font: inherit; color: inherit; }
   border: none; background: none; text-align: left; width: 100%;
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
+  text-decoration: none;
 }
+.nav-item:hover, .nav-item:focus, .nav-item:active { text-decoration: none; }
 .nav-item:hover { background: var(--bg-muted); color: var(--ink); }
 .nav-item.active {
   background: var(--bg-elev);
@@ -388,15 +390,34 @@ input, select, textarea { font: inherit; color: inherit; }
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
   animation: fade-in .18s ease;
+  overflow-y: auto;
 }
 .modal {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
-  width: min(540px, 100%);
+  width: 100%;
+  max-width: 540px;
+  max-height: calc(100vh - 48px);
   box-shadow: var(--shadow-3);
   animation: pop-in .22s cubic-bezier(.2, .9, .25, 1);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+.modal .card-head {
+  flex: none;
+  border-bottom: 1px solid var(--line);
+}
+.modal .card-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.modal .card-foot { flex: none; }
+@media (max-width: 600px) {
+  .modal-back { padding: 12px; }
+  .modal { max-height: calc(100vh - 24px); }
 }
 
 /* ============ UNIT GRID ============ */
