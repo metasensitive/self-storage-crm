@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { unitsApi } from '@/api/units';
@@ -7,9 +7,10 @@ import { Topbar } from '@/components/Topbar';
 import { Empty } from '@/components/ui/Empty';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
-import { AreaChart } from '@/components/charts/AreaChart';
+import { Tabs } from '@/components/ui/Tabs';
 import { Donut } from '@/components/charts/Donut';
 import { KPI } from '@/components/charts/KPI';
+import { RevenueChart } from '@/components/charts/RevenueChart';
 import { SegmentBar } from '@/components/charts/SegmentBar';
 import { Ic } from '@/components/Ic';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,8 +32,14 @@ function greeting(name: string): string {
   return `Добрый вечер, ${first}`;
 }
 
-function buildRevenueSeries(rents: Rent[], days = 30): { date: string; value: number }[] {
-  const today = dayjs().startOf('day');
+type PeriodDays = 7 | 30 | 90;
+
+function buildRevenueSeries(
+  rents: Rent[],
+  days: PeriodDays,
+  endOffset = 0,
+): { date: string; value: number }[] {
+  const today = dayjs().startOf('day').subtract(endOffset, 'day');
   const start = today.subtract(days - 1, 'day');
   const buckets: Record<string, number> = {};
   for (let i = 0; i < days; i += 1) {
@@ -64,6 +71,19 @@ export default function DashboardPage() {
     queryKey: queryKeys.rents.list({ status: 'active', page: 1 }),
     queryFn: () => rentsApi.list({ status: 'active', page: 1 }),
   });
+
+  // Завершённые аренды учитываются в графике дохода — иначе картина неполная.
+  const finishedRentsQ = useQuery({
+    queryKey: queryKeys.rents.list({ status: 'finished', page: 1 }),
+    queryFn: () => rentsApi.list({ status: 'finished', page: 1 }),
+  });
+
+  const allRevenueRents = useMemo(
+    () => [...(activeRentsQ.data?.data ?? []), ...(finishedRentsQ.data?.data ?? [])],
+    [activeRentsQ.data, finishedRentsQ.data],
+  );
+
+  const [revenuePeriod, setRevenuePeriod] = useState<PeriodDays>(30);
 
   const containersQ = useQuery({
     queryKey: queryKeys.containers.list({ all: true }),
@@ -124,9 +144,22 @@ export default function DashboardPage() {
   }, [activeRentsQ.data]);
 
   const revenueSeries = useMemo(
-    () => buildRevenueSeries(activeRentsQ.data?.data ?? [], 30),
-    [activeRentsQ.data],
+    () => buildRevenueSeries(allRevenueRents, revenuePeriod),
+    [allRevenueRents, revenuePeriod],
   );
+  const prevRevenueSeries = useMemo(
+    () => buildRevenueSeries(allRevenueRents, revenuePeriod, revenuePeriod),
+    [allRevenueRents, revenuePeriod],
+  );
+
+  const revenueSummary = useMemo(() => {
+    const total = revenueSeries.reduce((s, p) => s + p.value, 0);
+    const prevTotal = prevRevenueSeries.reduce((s, p) => s + p.value, 0);
+    const avg = total / revenueSeries.length;
+    const trend = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
+    return { total, avg, trend };
+  }, [revenueSeries, prevRevenueSeries]);
+
   const hasRevenue = revenueSeries.some((p) => p.value > 0);
 
   const isLoading = networkQ.isLoading || locationsQ.isLoading || activeRentsQ.isLoading;
@@ -210,23 +243,82 @@ export default function DashboardPage() {
                 <div className="card-head">
                   <div className="col">
                     <span className="t-micro">Доход</span>
-                    <span className="h-2 mt-1">Поступления за 30 дней</span>
+                    <span className="h-2 mt-1">
+                      Поступления за {revenuePeriod}{' '}
+                      {pluralize(revenuePeriod, ['день', 'дня', 'дней'])}
+                    </span>
                   </div>
+                  <Tabs
+                    tabs={[
+                      { id: '7', label: '7 дней' },
+                      { id: '30', label: '30 дней' },
+                      { id: '90', label: '90 дней' },
+                    ]}
+                    value={String(revenuePeriod)}
+                    onChange={(id) => setRevenuePeriod(Number(id) as PeriodDays)}
+                  />
                 </div>
                 <div className="card-body">
                   {hasRevenue ? (
-                    <AreaChart data={revenueSeries} height={240} />
+                    <>
+                      <div
+                        className="row gap-6 mb-4"
+                        style={{
+                          alignItems: 'baseline',
+                          flexWrap: 'wrap',
+                          marginBottom: 16,
+                        }}
+                      >
+                        <div className="col">
+                          <span className="t-micro">Всего за период</span>
+                          <span
+                            className="serif tnum mt-1"
+                            style={{ fontSize: 30, lineHeight: 1, letterSpacing: '-0.02em' }}
+                          >
+                            {fmtMoney(revenueSummary.total, { compact: true })}
+                          </span>
+                        </div>
+                        <div className="col">
+                          <span className="t-micro">В среднем / день</span>
+                          <span
+                            className="serif tnum mt-1"
+                            style={{ fontSize: 22, lineHeight: 1.1 }}
+                          >
+                            {fmtMoney(revenueSummary.avg, { compact: true })}
+                          </span>
+                        </div>
+                        {revenueSummary.trend != null && (
+                          <div className="col">
+                            <span className="t-micro">vs прошлый период</span>
+                            <span
+                              className="mono tnum mt-1"
+                              style={{
+                                fontSize: 18,
+                                color:
+                                  revenueSummary.trend >= 0
+                                    ? 'oklch(0.45 0.10 150)'
+                                    : 'oklch(0.50 0.10 25)',
+                              }}
+                            >
+                              {revenueSummary.trend > 0 ? '↑' : '↓'}{' '}
+                              {Math.abs(revenueSummary.trend).toFixed(1)}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <RevenueChart data={revenueSeries} height={260} />
+                    </>
                   ) : (
                     <div
                       className="t-small dim"
                       style={{
-                        height: 240,
+                        height: 260,
                         display: 'grid',
                         placeItems: 'center',
                         textAlign: 'center',
                       }}
                     >
-                      Недостаточно активных аренд за последний месяц для построения графика.
+                      За выбранный период нет аренд для построения графика.
                     </div>
                   )}
                 </div>
