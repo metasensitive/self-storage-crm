@@ -49,14 +49,10 @@ const createSchema = z.object({
   password: z.string().min(8, 'Минимум 8 символов').max(32, 'Максимум 32 символа'),
 });
 
+// При редактировании пароль не доступен — для смены пароля сотрудник
+// использует свой раздел «Профиль» либо процедуру «Забыли пароль».
 const editSchema = z.object({
   ...baseSchema,
-  password: z
-    .string()
-    .optional()
-    .refine((v) => !v || (v.length >= 8 && v.length <= 32), {
-      message: 'Пароль 8–32 символа',
-    }),
 });
 
 type CreateValues = z.infer<typeof createSchema>;
@@ -408,7 +404,6 @@ interface EditProps {
 
 function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
   const toast = useToast();
-  const [showPw, setShowPw] = useState(false);
 
   const {
     register,
@@ -421,7 +416,6 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
       name: user.name,
       email: user.email,
       role: user.role,
-      password: '',
     },
   });
 
@@ -433,9 +427,6 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
         // Если редактируем себя — отправляем текущую роль, чтобы бэк не вернул 422
         role: isMe ? (user.role as Role) : values.role,
       };
-      if (values.password && values.password.length > 0) {
-        payload.password = values.password;
-      }
       await usersApi.update(user.id, payload);
       onSuccess();
     } catch (err) {
@@ -447,7 +438,7 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
   return (
     <Modal open onClose={onClose} title={`Редактировать: ${user.name}`} width={560}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="col gap-3">
-        {isMe && (
+        {isMe ? (
           <div
             className="t-small"
             style={{
@@ -459,6 +450,19 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
           >
             Это ваш аккаунт. Роль изменить нельзя — для смены пароля используйте раздел
             «Профиль».
+          </div>
+        ) : (
+          <div
+            className="t-small"
+            style={{
+              padding: '8px 12px',
+              border: '1px dashed var(--line-2)',
+              borderRadius: 'var(--r-md)',
+              color: 'var(--ink-3)',
+            }}
+          >
+            Пароль сотрудника здесь изменить нельзя. Если требуется сброс — попросите его
+            воспользоваться функцией «Забыли пароль» на экране входа.
           </div>
         )}
         <Field label="Имя" error={errors.name?.message}>
@@ -472,28 +476,6 @@ function EditUserModal({ user, isMe, onClose, onSuccess }: EditProps) {
             <option value="manager">Менеджер</option>
             <option value="admin">Администратор</option>
           </Select>
-        </Field>
-        <Field
-          label="Новый пароль"
-          error={errors.password?.message}
-          hint="Оставьте пустым, чтобы не менять. При смене все токены пользователя сбросятся."
-        >
-          <div style={{ position: 'relative' }}>
-            <Input
-              type={showPw ? 'text' : 'password'}
-              autoComplete="new-password"
-              placeholder="••••••••"
-              style={{ paddingRight: 38 }}
-              {...register('password')}
-            />
-            <IconButton
-              icon={showPw ? 'eye_off' : 'eye'}
-              label={showPw ? 'Скрыть' : 'Показать'}
-              onClick={() => setShowPw((v) => !v)}
-              tabIndex={-1}
-              style={{ position: 'absolute', right: 4, top: 4 }}
-            />
-          </div>
         </Field>
 
         <div className="row gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
