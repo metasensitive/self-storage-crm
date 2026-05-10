@@ -1,16 +1,21 @@
-import { Outlet } from 'react-router-dom';
+import { Link, Outlet } from 'react-router-dom';
 
 export function AuthLayout() {
   return (
     <div className="auth-shell">
       <div className="auth-left">
-        <div className="brand">
+        <Link
+          to="/"
+          className="brand"
+          style={{ textDecoration: 'none', color: 'inherit', alignSelf: 'flex-start' }}
+          aria-label="На главную"
+        >
           <div className="brand-mark">S</div>
           <div className="col">
             <div className="brand-name">Storehaus</div>
             <div className="brand-sub">Operations</div>
           </div>
-        </div>
+        </Link>
         <div className="auth-form">
           <Outlet />
         </div>

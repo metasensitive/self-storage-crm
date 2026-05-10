@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { authApi } from '@/api/auth';
 import { Button, Field, IconButton, Input } from '@/components/ui';
 import { applyApiErrors } from '@/lib/applyApiErrors';
+import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 
 const schema = z
   .object({
@@ -37,11 +38,14 @@ export default function ResetPasswordPage() {
     register,
     handleSubmit,
     setError,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ResetValues>({
     resolver: zodResolver(schema),
     defaultValues: { password: '', password_confirmation: '' },
   });
+
+  const newPassword = watch('password') ?? '';
 
   async function onSubmit(values: ResetValues) {
     setGlobalError(null);
@@ -112,6 +116,8 @@ export default function ResetPasswordPage() {
             />
           </div>
         </Field>
+
+        <PasswordStrengthMeter password={newPassword} />
 
         <Field label="Повторите пароль" error={errors.password_confirmation?.message}>
           <Input
