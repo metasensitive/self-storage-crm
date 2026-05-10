@@ -4,6 +4,7 @@
  */
 export const queryKeys = {
   profile: ['profile'] as const,
+  sessions: ['sessions'] as const,
 
   analytics: {
     all: ['analytics'] as const,

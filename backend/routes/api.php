@@ -36,6 +36,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/avatar', [ProfileController::class, 'uploadAvatar']);
             Route::delete('/avatar', [ProfileController::class, 'deleteAvatar']);
             Route::put('/password', [ProfileController::class, 'changePassword']);
+
+            // Сессии (Sanctum-токены текущего пользователя)
+            Route::get('/sessions', [ProfileController::class, 'sessions']);
+            Route::delete('/sessions', [ProfileController::class, 'revokeOtherSessions']);
+            Route::delete('/sessions/{id}', [ProfileController::class, 'revokeSession']);
         });
 
         // роль: админ + менеджер

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,18 +10,24 @@ import { Button, IconButton } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { Tabs } from '@/components/ui/Tabs';
+import { LoadingState } from '@/components/ui/LoadingState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { Empty } from '@/components/ui/Empty';
+import { Modal } from '@/components/ui/Modal';
 import { useToast, useToastError } from '@/components/ui/Toast';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Ic } from '@/components/Ic';
 import { useAuth } from '@/contexts/AuthContext';
 import { profileApi } from '@/api/profile';
+import { sessionsApi, type Session } from '@/api/sessions';
 import { setToken } from '@/api/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
-import { fmtDate } from '@/lib/format';
+import { fmtDate, fmtDateTime } from '@/lib/format';
+import { parseUserAgent } from '@/lib/userAgent';
 import type { User } from '@/api/types';
 
-type Tab = 'profile' | 'password';
+type Tab = 'profile' | 'password' | 'sessions';
 
 const profileSchema = z.object({
   name: z.string().min(1, 'Имя обязательно').max(100, 'Максимум 100 символов'),
@@ -214,17 +220,16 @@ export default function ProfilePage() {
                 tabs={[
                   { id: 'profile', label: 'Данные' },
                   { id: 'password', label: 'Смена пароля' },
+                  { id: 'sessions', label: 'Сессии' },
                 ]}
                 value={tab}
                 onChange={(id) => setTab(id)}
               />
             </div>
             <div className="card-body">
-              {tab === 'profile' ? (
-                <ProfileForm user={user} onSaved={(u) => setUser(u)} />
-              ) : (
-                <PasswordForm onSuccess={handlePasswordSuccess} />
-              )}
+              {tab === 'profile' && <ProfileForm user={user} onSaved={(u) => setUser(u)} />}
+              {tab === 'password' && <PasswordForm onSuccess={handlePasswordSuccess} />}
+              {tab === 'sessions' && <SessionsTab />}
             </div>
           </div>
         </div>
@@ -396,5 +401,205 @@ function PasswordForm({ onSuccess }: PasswordFormProps) {
         </Button>
       </div>
     </form>
+  );
+}
+
+function SessionsTab() {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const toastError = useToastError();
+  const [confirmingAll, setConfirmingAll] = useState(false);
+
+  const sessionsQ = useQuery({
+    queryKey: queryKeys.sessions,
+    queryFn: sessionsApi.list,
+    staleTime: 30_000,
+  });
+
+  const revokeOneMut = useMutation({
+    mutationFn: (id: number) => sessionsApi.revoke(id),
+    onSuccess: () => {
+      toast.success('Сессия завершена');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    },
+    onError: (err) => toastError(err, 'Не удалось завершить сессию'),
+  });
+
+  const revokeAllMut = useMutation({
+    mutationFn: () => sessionsApi.revokeOthers(),
+    onSuccess: (data) => {
+      const n = data.data.revoked;
+      toast.success(
+        n > 0 ? `Завершено сессий: ${n}` : 'Других активных сессий не было',
+      );
+      setConfirmingAll(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    },
+    onError: (err) => toastError(err, 'Не удалось завершить сессии'),
+  });
+
+  if (sessionsQ.isLoading) return <LoadingState label="Загрузка сессий…" />;
+  if (sessionsQ.error) {
+    return <ErrorState error={sessionsQ.error} onRetry={() => void sessionsQ.refetch()} />;
+  }
+
+  const list = sessionsQ.data ?? [];
+  const others = list.filter((s) => !s.is_current);
+
+  if (list.length === 0) {
+    return <Empty title="Активных сессий нет" />;
+  }
+
+  return (
+    <>
+      <div
+        className="row gap-3"
+        style={{
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div className="t-small muted">
+          Всего активных сессий: <strong className="mono tnum">{list.length}</strong>
+        </div>
+        <Button
+          variant="danger"
+          icon="logout"
+          disabled={others.length === 0 || revokeAllMut.isPending}
+          loading={revokeAllMut.isPending}
+          onClick={() => setConfirmingAll(true)}
+        >
+          Завершить все остальные
+        </Button>
+      </div>
+
+      <div className="col" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {list.map((s) => (
+          <SessionCard
+            key={s.id}
+            session={s}
+            revoking={revokeOneMut.isPending && revokeOneMut.variables === s.id}
+            onRevoke={() => revokeOneMut.mutate(s.id)}
+          />
+        ))}
+      </div>
+
+      <Modal
+        open={confirmingAll}
+        onClose={() => setConfirmingAll(false)}
+        title="Завершить все остальные сессии?"
+        width={460}
+      >
+        <p className="t-body">
+          Все ваши сессии на других устройствах и браузерах будут завершены. Текущая останется
+          активной.
+        </p>
+        <div className="row gap-2 mt-4" style={{ justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={() => setConfirmingAll(false)}>
+            Отмена
+          </Button>
+          <Button
+            variant="danger"
+            icon="logout"
+            loading={revokeAllMut.isPending}
+            onClick={() => revokeAllMut.mutate()}
+          >
+            Завершить
+          </Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+interface SessionCardProps {
+  session: Session;
+  revoking: boolean;
+  onRevoke: () => void;
+}
+
+function SessionCard({ session, revoking, onRevoke }: SessionCardProps) {
+  const ua = parseUserAgent(session.user_agent);
+  const deviceIcon =
+    ua.device === 'mobile' ? 'box' : ua.device === 'tablet' ? 'box' : 'dashboard';
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 14,
+        padding: 14,
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--r-md)',
+        background: session.is_current ? 'var(--bg-muted)' : 'var(--bg-elev)',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 'var(--r-md)',
+          background: 'var(--bg-sunken)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--ink-2)',
+          flex: 'none',
+        }}
+      >
+        <Ic name={deviceIcon} size={18} />
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="row gap-2" style={{ alignItems: 'center', marginBottom: 4 }}>
+          <span className="h-2">{ua.browser}</span>
+          <span className="t-small dim">·</span>
+          <span className="t-small">{ua.os}</span>
+          {session.is_current && (
+            <span className="badge active" style={{ marginLeft: 'auto' }}>
+              <span className="dot" />
+              Текущая
+            </span>
+          )}
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '4px 16px',
+            fontSize: 12.5,
+            color: 'var(--ink-3)',
+          }}
+        >
+          <span>
+            <strong style={{ color: 'var(--ink-2)' }}>IP:</strong>{' '}
+            <span className="mono">{session.ip_address ?? '—'}</span>
+          </span>
+          <span>
+            <strong style={{ color: 'var(--ink-2)' }}>Создана:</strong>{' '}
+            {fmtDate(session.created_at)}
+          </span>
+          <span>
+            <strong style={{ color: 'var(--ink-2)' }}>Последняя активность:</strong>{' '}
+            {session.last_used_at ? fmtDateTime(session.last_used_at) : 'не использовалась'}
+          </span>
+        </div>
+      </div>
+
+      {!session.is_current && (
+        <Button
+          variant="danger"
+          size="sm"
+          icon="logout"
+          loading={revoking}
+          onClick={onRevoke}
+        >
+          Завершить
+        </Button>
+      )}
+    </div>
   );
 }
