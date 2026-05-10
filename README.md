@@ -2,72 +2,122 @@
 
 > Дипломный проект — CRM-панель управления сетью контейнерных кладовок в жилых комплексах.
 
+Монорепозиторий: **Laravel REST API** (`backend/`) + **React SPA** (`frontend/`).
+
 ---
 
 ## 📋 Содержание
 
 - [Стек технологий](#-стек-технологий)
 - [Структура проекта](#-структура-проекта)
-- [Установка](#-установка-backend)
+- [Быстрый старт](#-быстрый-старт)
+  - [Установка backend](#установка-backend)
+  - [Установка frontend](#установка-frontend)
 - [Доступы после сидирования](#-доступы-после-сидирования)
+- [Возможности](#-возможности)
 - [API](#-api)
+- [Маршруты frontend](#-маршруты-frontend)
 - [Тесты](#-тесты)
 - [Бизнес-правила](#-бизнес-правила)
+- [Production-сборка](#-production-сборка)
+- [Решение типовых проблем](#-решение-типовых-проблем)
 - [Автор](#-автор)
 
 ---
 
 ## 🛠 Стек технологий
 
-| Часть                 | Технологии                                    |
-| --------------------- | --------------------------------------------- |
-| **Backend**           | PHP 8.3+, Laravel 13, PostgreSQL, Sanctum     |
-| **Frontend**          | React, JavaScript, HTML/CSS                   |
-| **Документация API**  | Swagger (Scramble)                            |
-| **Тестирование**      | PHPUnit — 10 тестов, 38 assertions            |
+| Часть                | Технологии                                                          |
+| -------------------- | ------------------------------------------------------------------- |
+| **Backend**          | PHP 8.3+, Laravel 13, PostgreSQL, Sanctum                            |
+| **Frontend**         | Vite, React 18, TypeScript, React Router v6                          |
+| **Серверное состояние** | TanStack Query v5 + Axios                                         |
+| **Формы**            | React Hook Form + Zod                                                |
+| **Стили**            | Чистый CSS на oklch-токенах, светлая/тёмная темы                     |
+| **Геокодинг**        | Nominatim (OpenStreetMap) — без API-ключа                            |
+| **Документация API** | Swagger (Scramble)                                                   |
+| **Тестирование**     | PHPUnit — 10 тестов, 38 assertions                                   |
 
 ---
 
 ## 📁 Структура проекта
 
-Монорепозиторий, состоящий из двух частей: backend (Laravel) и frontend (React).
-
 ```text
 self-storage-crm/
-├── backend/                  # Laravel REST API
+├── backend/                      # Laravel REST API
 │   ├── app/
 │   │   ├── Http/
-│   │   │   ├── Controllers/
-│   │   │   ├── Middleware/
-│   │   │   ├── Requests/
-│   │   │   └── Resources/
-│   │   ├── Models/
-│   │   └── Services/
+│   │   │   ├── Controllers/      # Auth, Profile, Users, Locations,
+│   │   │   │                       Containers, Units, Rents, Analytics
+│   │   │   ├── Middleware/       # RoleMiddleware, RefreshTokenMetadata
+│   │   │   ├── Requests/         # FormRequest на каждое мутирующее действие
+│   │   │   └── Resources/        # JsonResource для ответов API
+│   │   ├── Mail/                 # ResetPasswordMail
+│   │   ├── Models/               # User, Location, Container, Unit, Rent
+│   │   └── Services/             # RentService, AnalyticsService
 │   ├── database/
-│   │   ├── factories/
-│   │   ├── migrations/
-│   │   └── seeders/
-│   ├── routes/
+│   │   ├── factories/, migrations/, seeders/
+│   ├── resources/views/emails/   # blade-шаблоны писем
+│   ├── routes/api.php
 │   └── tests/
-└── frontend/                 # React SPA
+│
+└── frontend/                     # React SPA
+    ├── design-source/            # read-only бандл дизайн-прототипа (референс)
+    └── src/
+        ├── api/                  # axios + типы + REST-обёртки
+        ├── components/
+        │   ├── ui/               # Button, Modal, Drawer, Toast, …
+        │   ├── charts/           # KPI, Donut, AreaChart, RevenueChart, …
+        │   └── …                 # Sidebar, Topbar, AccountSwitcher, …
+        ├── contexts/             # AuthContext (с мульти-аккаунтами)
+        ├── hooks/                # useTheme, useTweaks
+        ├── layouts/              # AppLayout, AuthLayout
+        ├── pages/                # все экраны
+        ├── lib/                  # format, queryClient, queryKeys,
+        │                           applyApiErrors, password, geocoding,
+        │                           userAgent, accounts, enrich
+        └── styles/               # global.css, landing.css
 ```
 
 ---
 
-## ⚙️ Установка (backend)
+## 🚀 Быстрый старт
+
+### Установка backend
 
 ```bash
 cd backend
 composer install
 cp .env.example .env
-# Настроить БД (PostgreSQL) и почту в .env
+# Настроить БД (PostgreSQL) и почту (Mailtrap для dev) в .env
 php artisan key:generate
 php artisan migrate --seed
 php artisan storage:link
 php artisan serve
 ```
 
-После запуска сервер будет доступен по адресу `http://localhost:8000`.
+После запуска API доступен на `http://localhost:8000`.
+
+В `backend/.env` для корректной работы writeups и писем должны быть указаны:
+
+```env
+APP_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:5173
+# Опционально: дополнительные origins для CORS через запятую.
+# Локальные порты Vite (dev 5173, preview 4173) уже разрешены по умолчанию.
+CORS_ALLOWED_ORIGINS=
+```
+
+### Установка frontend
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Приложение доступно на `http://localhost:5173`. Запросы к `/api/*` проксируются Vite на бэкенд `127.0.0.1:8000` — CORS не задействован.
 
 ---
 
@@ -80,6 +130,38 @@ php artisan serve
 
 ---
 
+## ✨ Возможности
+
+### Аутентификация и аккаунты
+- Login через Sanctum-токены, защищённые маршруты, разделение ролей `admin` / `manager`
+- Восстановление пароля по email через Mailtrap (письмо в фирменном стиле проекта)
+- Принудительная смена временного пароля при первом входе нового сотрудника
+- **Мульти-аккаунты**: несколько учёток в localStorage с быстрым переключением через попап в сайдбаре
+- Управление **активными сессиями**: список устройств с IP/User-Agent, отзыв одной или всех, кроме текущей
+- Индикатор сложности пароля (6 проверок: длина, регистры, цифры, спецсимволы)
+
+### CRM
+- **Локации** — карточная сетка с заполняемостью, drawer с детализацией и аналитикой, CRUD для администратора
+- **Геокодинг адреса** — автокомплит через Nominatim/OpenStreetMap; широта и долгота выставляются автоматически
+- **Контейнеры** — таблица с фильтрами (локация, статус), CRUD, быстрая смена статуса
+- **Кладовки** — табличный режим **+ карта-сетка** контейнера с цветовой индикацией статусов; история аренд по каждой; быстрая смена статуса/цены
+- **Аренды** — список с фильтрами, drawer с прогресс-баром периода, модалка создания с live-расчётом цены и валидацией ≥10 дней, действие «Завершить»
+- **Аналитика** — сетевые KPI, donut статусов, чарт дохода с переключателем 7/30/90 дней (hover-tooltip, тренд vs предыдущего периода), рейтинг локаций
+- **Сотрудники** (admin) — CRUD с генерацией временного пароля и копированием учётных данных
+- **Профиль** — данные, смена пароля (с автологином), управление аватаром, активные сессии
+
+### Лендинг
+- Полноценная маркетинговая страница: Hero с интерактивной живой сеткой 12×8, бесконечная лента статистики, live-дашборд с count-up анимациями, интерактивный контейнер 7×8 для демонстрации, bento-фичи, stats-полоса с count-up по скроллу, тёмный CTA-блок
+- Плавная прокрутка по якорям, переключатель темы
+
+### Visual / UX
+- Двухколоночный AuthLayout с серифным заголовком
+- Светлая и тёмная темы (oklch-токены), плотность интерфейса (compact/comfortable/spacious)
+- Тема и плотность сохраняются в localStorage и применяются inline-скриптом ещё до рендера React (нет FOUC, тема единая на всех страницах)
+- Toast-уведомления, drawer/modal с правильными отступами, пагинация, empty-states
+
+---
+
 ## 📡 API
 
 Полная документация Swagger доступна после запуска сервера:
@@ -88,12 +170,12 @@ php artisan serve
 http://localhost:8000/docs/api
 ```
 
-### Основные эндпоинты
+### Группы эндпоинтов
 
 | Группа              | Маршруты                | Доступ                                          |
 | ------------------- | ----------------------- | ----------------------------------------------- |
-| **Аутентификация**  | `/api/v1/auth/*`        | Гостевые                                        |
-| **Профиль**         | `/api/v1/profile/*`     | Авторизованные                                  |
+| **Аутентификация**  | `/api/v1/auth/*`        | Гостевые (login, forgot/reset password)         |
+| **Профиль**         | `/api/v1/profile/*`     | Авторизованные (данные, аватар, пароль, сессии) |
 | **Пользователи**    | `/api/v1/users/*`       | Только админ                                    |
 | **Локации**         | `/api/v1/locations/*`   | Чтение: админ + менеджер · Запись: админ        |
 | **Контейнеры**      | `/api/v1/containers/*`  | Чтение: админ + менеджер · Запись: админ        |
@@ -103,15 +185,34 @@ http://localhost:8000/docs/api
 
 ---
 
+## 🧭 Маршруты frontend
+
+| Путь                                              | Доступ                                                    |
+| ------------------------------------------------- | --------------------------------------------------------- |
+| `/`                                               | Лендинг (публичный)                                       |
+| `/login`, `/forgot-password`, `/reset-password`   | Гостевые (если уже залогинен — редирект на `/dashboard`)  |
+| `/first-login`                                    | Авторизованные с временным паролем (gate)                 |
+| `/dashboard`                                      | Все авторизованные                                        |
+| `/locations`, `/containers`, `/units`, `/rents`   | Все авторизованные                                        |
+| `/analytics`, `/profile`                          | Все авторизованные                                        |
+| `/users`                                          | Только администратор                                      |
+
+---
+
 ## 🧪 Тесты
 
-Запуск тестов:
-
 ```bash
+cd backend
 php artisan test --testsuite=Feature
 ```
 
 **Результат:** ✅ 10 passed, 38 assertions.
+
+Покрытие:
+- Аутентификация (login, forgot-password, reset-password)
+- Проверка прав доступа (admin vs manager)
+- Бизнес-логика аренды (минимум 10 дней, перекрытия, расчёт цены)
+- Аналитика (расчёт сетевой статистики)
 
 ---
 
@@ -119,8 +220,8 @@ php artisan test --testsuite=Feature
 
 ### Аренда
 
-- **Минимальный срок аренды** — 10 дней
-- **Запрет на дублирование** — нельзя создать аренду на уже занятую кладовку
+- **Минимальный срок** — 10 дней
+- **Запрет на дублирование** — нельзя оформить аренду на занятые даты
 - **Формула расчёта стоимости:**
   ```
   Цена аренды = Цена кладовки × Количество дней
@@ -132,13 +233,70 @@ php artisan test --testsuite=Feature
 - Нельзя удалить **контейнер**, если в нём есть кладовки
 - Нельзя удалить **кладовку**, если у неё есть активная аренда
 
-### Безопасность аккаунта
+### Безопасность
 
-- Нельзя удалить самого себя (текущего пользователя)
-- При смене пароля автоматически аннулируются все активные токены
+- Нельзя удалить самого себя или изменить свою роль
+- Нельзя редактировать данные другого администратора
+- Смена пароля инвалидирует все активные токены пользователя
+- Сброс пароля по email — токен живёт 60 минут
+- Сессии можно отзывать выборочно или массово (кроме текущей) через раздел «Профиль»
+
+---
+
+## 🏗 Production-сборка
+
+### Frontend
+
+```bash
+cd frontend
+npm run build      # type-check + production-сборка в dist/
+npm run preview    # локальный предпросмотр сборки на :4173
+```
+
+> Preview-сервер использует тот же proxy на бэк, что и dev — `npm run preview` будет
+> работать с локальным `php artisan serve` без CORS-настроек.
+
+В production укажите в `frontend/.env`:
+
+```env
+VITE_API_URL=https://api.example.com
+```
+
+Раздать содержимое `dist/` через nginx/Vercel/Netlify. Devtools React Query автоматически отключаются в production-сборке.
+
+### Backend
+
+Стандартный Laravel-deployment:
+
+```bash
+composer install --optimize-autoloader --no-dev
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan migrate --force
+```
+
+---
+
+## 🩺 Решение типовых проблем
+
+### «Не удалось связаться с сервером» при логине / сбросе пароля
+
+1. Бэкенд не запущен — проверьте `php artisan serve`.
+2. CORS — две стратегии:
+   - **Через Vite-proxy** (рекомендуется для локалки): оставьте `VITE_API_URL` в `frontend/.env` пустым. Запросы идут по относительному пути и проксируются Vite на бэк, CORS не задействован. Работает в обоих режимах — `npm run dev` и `npm run preview`.
+   - **Прямо на бэк** (`VITE_API_URL=http://localhost:8000` в `frontend/.env`): задействуется CORS. Локальные порты Vite (dev 5173, preview 4173, плюс варианты с `127.0.0.1`) уже разрешены в `config/cors.php` по умолчанию. Если используется другой порт или продовый домен — допишите в `CORS_ALLOWED_ORIGINS` в `backend/.env` через запятую и выполните `php artisan config:clear`.
+
+### Сайт не открывается при включённом VPN
+
+Откройте dev-сервер по `http://127.0.0.1:5173` (явный IP вместо имени `localhost`). Vite слушает все интерфейсы, proxy на бэк ходит через `127.0.0.1:8000`, поэтому VPN-туннель ничего не перехватывает.
+
+### Письмо со ссылкой сброса не приходит
+
+Проверьте настройки Mailtrap в `backend/.env` (MAIL_MAILER, MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD). Бэкенд возвращает `200 OK` независимо от существования email — это намеренно для защиты от перебора учёток.
 
 ---
 
 ## 👤 Автор
 
-**Backend-разработчик:** [@metasensitive](https://github.com/metasensitive)
+**Разработчик:** [@metasensitive](https://github.com/metasensitive)
