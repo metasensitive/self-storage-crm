@@ -2,6 +2,20 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
+// Используется и в dev (server.proxy), и в preview (preview.proxy).
+// Явный loopback `127.0.0.1` вместо `localhost`, чтобы не маршрутизироваться
+// через VPN-туннель.
+const PROXY_CONFIG = {
+  '/api': {
+    target: 'http://127.0.0.1:8000',
+    changeOrigin: true,
+  },
+  '/storage': {
+    target: 'http://127.0.0.1:8000',
+    changeOrigin: true,
+  },
+};
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -16,17 +30,15 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    proxy: {
-      // Используем явный loopback `127.0.0.1` вместо имени `localhost`
-      // по той же причине — чтобы не маршрутизироваться через VPN-туннель.
-      '/api': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/storage': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-    },
+    proxy: PROXY_CONFIG,
+  },
+  // `npm run preview` запускает статический сервер для dist/ — у него
+  // отдельный конфиг, но мы хотим то же самое поведение, что и в dev.
+  // Без этого preview не проксирует /api на бэк, и axios получает Network Error.
+  preview: {
+    host: true,
+    port: 4173,
+    strictPort: true,
+    proxy: PROXY_CONFIG,
   },
 });

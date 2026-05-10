@@ -247,8 +247,11 @@ php artisan test --testsuite=Feature
 ```bash
 cd frontend
 npm run build      # type-check + production-сборка в dist/
-npm run preview    # локальный предпросмотр сборки
+npm run preview    # локальный предпросмотр сборки на :4173
 ```
+
+> Preview-сервер использует тот же proxy на бэк, что и dev — `npm run preview` будет
+> работать с локальным `php artisan serve` без CORS-настроек.
 
 В production укажите в `frontend/.env`:
 
