@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru" data-theme="light" data-density="comfortable">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,6 +10,46 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <!--
+      Применяем сохранённые тему и плотность как можно раньше — до React.
+      Это: (а) предотвращает мерцание светлой темы у пользователей с тёмной,
+      и (б) гарантирует единую тему на всех страницах, включая те, что не
+      используют useTweaks-хук (login, forgot/reset password).
+    -->
+    <script>
+      (function () {
+        try {
+          var html = document.documentElement;
+          var theme = 'light';
+          var density = 'comfortable';
+          var raw = window.localStorage.getItem('storehaus.tweaks');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && (parsed.theme === 'dark' || parsed.theme === 'light')) {
+              theme = parsed.theme;
+            }
+            if (
+              parsed &&
+              (parsed.density === 'compact' ||
+                parsed.density === 'comfortable' ||
+                parsed.density === 'spacious')
+            ) {
+              density = parsed.density;
+            }
+          } else if (
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches
+          ) {
+            theme = 'dark';
+          }
+          html.setAttribute('data-theme', theme);
+          html.setAttribute('data-density', density);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+          document.documentElement.setAttribute('data-density', 'comfortable');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
