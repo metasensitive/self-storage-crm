@@ -103,6 +103,9 @@ php artisan serve
 ```env
 APP_URL=http://localhost:8000
 FRONTEND_URL=http://localhost:5173
+# Опционально: дополнительные origins для CORS через запятую.
+# Локальные порты Vite (dev 5173, preview 4173) уже разрешены по умолчанию.
+CORS_ALLOWED_ORIGINS=
 ```
 
 ### Установка frontend
@@ -280,7 +283,9 @@ php artisan migrate --force
 ### «Не удалось связаться с сервером» при логине / сбросе пароля
 
 1. Бэкенд не запущен — проверьте `php artisan serve`.
-2. CORS — оставьте `VITE_API_URL` в `frontend/.env` пустым (Vite-proxy без CORS), либо выставьте `FRONTEND_URL=http://localhost:5173` в `backend/.env` и выполните `php artisan config:clear`.
+2. CORS — две стратегии:
+   - **Через Vite-proxy** (рекомендуется для локалки): оставьте `VITE_API_URL` в `frontend/.env` пустым. Запросы идут по относительному пути и проксируются Vite на бэк, CORS не задействован. Работает в обоих режимах — `npm run dev` и `npm run preview`.
+   - **Прямо на бэк** (`VITE_API_URL=http://localhost:8000` в `frontend/.env`): задействуется CORS. Локальные порты Vite (dev 5173, preview 4173, плюс варианты с `127.0.0.1`) уже разрешены в `config/cors.php` по умолчанию. Если используется другой порт или продовый домен — допишите в `CORS_ALLOWED_ORIGINS` в `backend/.env` через запятую и выполните `php artisan config:clear`.
 
 ### Сайт не открывается при включённом VPN
 
