@@ -45,7 +45,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 76px; }
 .lp-nav-link:hover { color: var(--ink); background: var(--bg-muted); }
 
 .lp-theme-toggle {
-  width: 40px; height: 40px;
+  width: 34px; height: 34px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--bg-elev);
@@ -60,6 +60,14 @@ html { scroll-behavior: smooth; scroll-padding-top: 76px; }
   background: var(--bg-muted);
   border-color: var(--line-2);
   transform: translateY(-1px);
+}
+
+/* В шапке кнопка «Войти» компактнее, чем в hero-CTA */
+.lp-nav-row .btn-hero {
+  padding: 9px 16px;
+  font-size: 13.5px;
+  border-radius: 9px;
+  gap: 8px;
 }
 
 /* ===== HERO ===== */
