@@ -12,6 +12,7 @@ import {
 import { authApi } from '@/api/auth';
 import { profileApi } from '@/api/profile';
 import { getToken, registerUnauthorizedHandler, setToken } from '@/api/client';
+import { accountsStore, type StoredAccount } from '@/lib/accounts';
 import type { Role, User } from '@/api/types';
 
 interface AuthContextValue {
@@ -29,6 +30,14 @@ interface AuthContextValue {
   setUser: (user: User | null) => void;
   /** Пометить пользователя как сменившего пароль (вызывает FirstLoginPage после смены) */
   markPasswordChanged: () => void;
+
+  // ===== Мульти-аккаунты =====
+  /** Сохранённые на этом устройстве аккаунты с их токенами */
+  accounts: StoredAccount[];
+  /** Переключиться на другой сохранённый аккаунт по id */
+  switchAccount: (id: number) => Promise<void>;
+  /** Удалить аккаунт из списка (без logout на бэке, просто локальная очистка) */
+  removeAccount: (id: number) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -58,11 +67,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [accounts, setAccounts] = useState<StoredAccount[]>(() => accountsStore.list());
   const cancelledRef = useRef(false);
 
   function applyUser(u: User | null) {
     setUser(u);
     setMustChangePassword(detectMustChangePassword(u));
+  }
+
+  function rememberAccount(u: User, token: string) {
+    const next = accountsStore.upsert({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      avatar_url: u.avatar_url,
+      token,
+    });
+    setAccounts(next);
   }
 
   const refresh = useCallback(async () => {
@@ -113,11 +135,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }) as User,
     );
     applyUser(full);
+    rememberAccount(full, token);
     setStatus('ready');
     return full;
   }, []);
 
   const logout = useCallback(async () => {
+    const currentId = user?.id;
     try {
       await authApi.logout();
     } catch {
@@ -125,7 +149,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     setToken(null);
     applyUser(null);
+    if (currentId != null) {
+      const next = accountsStore.remove(currentId);
+      setAccounts(next);
+    }
+  }, [user]);
+
+  const switchAccount = useCallback(async (id: number) => {
+    const acc = accountsStore.find(id);
+    if (!acc) return;
+    setToken(acc.token);
+    setStatus('loading');
+    try {
+      const me = await profileApi.show();
+      applyUser(me);
+      // Обновим запись в localStorage свежими полями (имя/аватар могли измениться)
+      rememberAccount(me, acc.token);
+    } catch {
+      // Токен мёртв на сервере — удаляем аккаунт локально
+      accountsStore.remove(id);
+      setAccounts(accountsStore.list());
+      setToken(null);
+      applyUser(null);
+    } finally {
+      setStatus('ready');
+    }
   }, []);
+
+  const removeAccount = useCallback(
+    (id: number) => {
+      const next = accountsStore.remove(id);
+      setAccounts(next);
+      // Если удалили текущий — выходим
+      if (user?.id === id) {
+        setToken(null);
+        applyUser(null);
+      }
+    },
+    [user],
+  );
 
   const markPasswordChanged = useCallback(() => {
     setMustChangePassword(false);
@@ -142,8 +204,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       refresh,
       setUser,
       markPasswordChanged,
+      accounts,
+      switchAccount,
+      removeAccount,
     }),
-    [user, status, mustChangePassword, login, logout, refresh, markPasswordChanged],
+    [
+      user,
+      status,
+      mustChangePassword,
+      login,
+      logout,
+      refresh,
+      markPasswordChanged,
+      accounts,
+      switchAccount,
+      removeAccount,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

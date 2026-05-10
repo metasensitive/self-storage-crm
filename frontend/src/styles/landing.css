@@ -44,6 +44,24 @@ html { scroll-behavior: smooth; scroll-padding-top: 76px; }
 }
 .lp-nav-link:hover { color: var(--ink); background: var(--bg-muted); }
 
+.lp-theme-toggle {
+  width: 40px; height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: var(--ink-2);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease, transform .12s ease, border-color .15s ease;
+  flex: none;
+}
+.lp-theme-toggle:hover {
+  color: var(--ink);
+  background: var(--bg-muted);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+}
+
 /* ===== HERO ===== */
 .lp-hero {
   padding: 56px 0 72px;

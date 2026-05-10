@@ -1,7 +1,9 @@
+import { useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Avatar } from './ui/Avatar';
 import { IconButton } from './ui/Button';
 import { Ic, type IconName } from './Ic';
+import { AccountSwitcher } from './AccountSwitcher';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTweaks } from '@/hooks/useTweaks';
 import type { Role } from '@/api/types';
@@ -24,9 +26,11 @@ const NAV: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const { user, role, logout } = useAuth();
+  const { user, role } = useAuth();
   const { tweaks, setTweak } = useTweaks();
   const navigate = useNavigate();
+  const pillRef = useRef<HTMLButtonElement>(null);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   if (!user || !role) return null;
 
@@ -34,11 +38,7 @@ export function Sidebar() {
   const toggleTheme = () => setTweak('theme', isDark ? 'light' : 'dark');
 
   const visible = NAV.filter((n) => n.roles.includes(role));
-
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
+  void navigate;
 
   return (
     <nav className="sidebar">
@@ -76,9 +76,24 @@ export function Sidebar() {
       </NavLink>
 
       <div className="sidebar-foot">
-        <div className="user-pill">
+        <div
+          ref={pillRef as unknown as React.RefObject<HTMLDivElement>}
+          role="button"
+          tabIndex={0}
+          className="user-pill user-pill-btn"
+          onClick={() => setSwitcherOpen((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setSwitcherOpen((v) => !v);
+            }
+          }}
+          aria-haspopup="dialog"
+          aria-expanded={switcherOpen}
+          title="Переключить аккаунт"
+        >
           <Avatar name={user.name} src={user.avatar_url} />
-          <div className="col" style={{ minWidth: 0, flex: 1 }}>
+          <div className="col" style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
             <div
               style={{
                 fontSize: 13,
@@ -100,10 +115,19 @@ export function Sidebar() {
           <IconButton
             icon={isDark ? 'sun' : 'moon'}
             label={isDark ? 'Светлая тема' : 'Тёмная тема'}
-            onClick={toggleTheme}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleTheme();
+            }}
           />
-          <IconButton icon="logout" label="Выйти" onClick={handleLogout} />
+          <Ic name="chev_d" size={14} className="ic" />
         </div>
+
+        <AccountSwitcher
+          open={switcherOpen}
+          onClose={() => setSwitcherOpen(false)}
+          anchorRef={pillRef}
+        />
       </div>
     </nav>
   );

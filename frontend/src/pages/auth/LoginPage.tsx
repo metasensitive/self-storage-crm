@@ -21,6 +21,7 @@ type LoginValues = z.infer<typeof schema>;
 interface LocationState {
   from?: string;
   resetSuccess?: boolean;
+  addAccount?: boolean;
 }
 
 export default function LoginPage() {
@@ -31,6 +32,7 @@ export default function LoginPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const state = location.state as LocationState | null;
   const resetSuccess = state?.resetSuccess === true;
+  const addAccount = state?.addAccount === true;
 
   const {
     register,
@@ -62,10 +64,14 @@ export default function LoginPage() {
 
   return (
     <>
-      <div className="t-micro">Вход в систему</div>
-      <h1 className="h-display-sm mt-2">С возвращением.</h1>
+      <div className="t-micro">{addAccount ? 'Добавление аккаунта' : 'Вход в систему'}</div>
+      <h1 className="h-display-sm mt-2">
+        {addAccount ? 'Войдите в другой аккаунт.' : 'С возвращением.'}
+      </h1>
       <p className="muted mt-2 t-body">
-        Войдите в панель оператора, чтобы управлять локациями, контейнерами и арендами.
+        {addAccount
+          ? 'Текущий аккаунт сохранится — вы сможете переключаться между ними через сайдбар.'
+          : 'Войдите в панель оператора, чтобы управлять локациями, контейнерами и арендами.'}
       </p>
 
       {resetSuccess && (

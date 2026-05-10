@@ -24,7 +24,7 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
 
     // защищённые маршруты (только авторизованные)
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', \App\Http\Middleware\RefreshTokenMetadata::class])->group(function () {
 
         // выход
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -36,6 +36,11 @@ Route::prefix('v1')->group(function () {
             Route::post('/avatar', [ProfileController::class, 'uploadAvatar']);
             Route::delete('/avatar', [ProfileController::class, 'deleteAvatar']);
             Route::put('/password', [ProfileController::class, 'changePassword']);
+
+            // Сессии (Sanctum-токены текущего пользователя)
+            Route::get('/sessions', [ProfileController::class, 'sessions']);
+            Route::delete('/sessions', [ProfileController::class, 'revokeOtherSessions']);
+            Route::delete('/sessions/{id}', [ProfileController::class, 'revokeSession']);
         });
 
         // роль: админ + менеджер

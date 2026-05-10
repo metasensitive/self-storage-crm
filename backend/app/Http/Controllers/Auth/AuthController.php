@@ -33,7 +33,12 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $newToken = $user->createToken('auth-token');
+        // Сохраняем IP и User-Agent для отображения в списке сессий
+        $newToken->accessToken->forceFill([
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string) $request->userAgent(), 0, 1000),
+        ])->save();
 
         return response()->json([
             'user' => [
@@ -43,7 +48,7 @@ class AuthController extends Controller
                 'role' => $user->role,
                 'avatar_url' => $user->avatar_url
             ],
-            'token' => $token
+            'token' => $newToken->plainTextToken
         ]);
     }
 
