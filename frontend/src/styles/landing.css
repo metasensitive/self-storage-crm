@@ -714,6 +714,79 @@ html { scroll-behavior: smooth; scroll-padding-top: 76px; }
 .lp-foot a:hover { color: var(--ink); }
 .lp-foot .links { display: flex; gap: 22px; margin-left: auto; flex-wrap: wrap; }
 
+/* ===== DARK THEME OVERRIDES =====
+ * Эти селекторы переопределяют жёстко-светлые oklch-фоны/градиенты,
+ * которые в светлой теме выглядят как «нежные акценты», а в тёмной —
+ * как яркие белые засветки на тёмном фоне. Подбираем тёмные варианты
+ * с тем же hue, но с пониженной светлотой.
+ */
+[data-theme="dark"] .lp-hero-visual::before {
+  background:
+    radial-gradient(ellipse at 90% 0%, oklch(0.30 0.05 80) 0%, transparent 55%),
+    radial-gradient(ellipse at 0% 100%, oklch(0.28 0.06 250) 0%, transparent 60%);
+  opacity: 0.55;
+}
+
+[data-theme="dark"] .lp-unit {
+  background: oklch(0.24 0.008 60);
+  border-color: oklch(0.30 0.008 60);
+}
+[data-theme="dark"] .lp-unit.s-free {
+  background: oklch(0.32 0.06 150); border-color: oklch(0.42 0.08 150);
+}
+[data-theme="dark"] .lp-unit.s-rented {
+  background: oklch(0.30 0.06 250); border-color: oklch(0.42 0.08 250);
+}
+[data-theme="dark"] .lp-unit.s-reserved {
+  background: oklch(0.34 0.07 80); border-color: oklch(0.44 0.09 80);
+}
+[data-theme="dark"] .lp-unit.s-blocked {
+  background: oklch(0.30 0.05 25); border-color: oklch(0.40 0.07 25);
+}
+
+[data-theme="dark"] .lp-try-unit.s-free {
+  background: oklch(0.32 0.06 150); border-color: oklch(0.44 0.08 150);
+  color: oklch(0.88 0.10 150);
+}
+[data-theme="dark"] .lp-try-unit.s-rented {
+  background: oklch(0.30 0.06 250); border-color: oklch(0.42 0.08 250);
+  color: oklch(0.86 0.10 250);
+}
+[data-theme="dark"] .lp-try-unit.s-reserved {
+  background: oklch(0.34 0.07 80); border-color: oklch(0.46 0.09 80);
+  color: oklch(0.88 0.10 80);
+}
+[data-theme="dark"] .lp-try-unit.s-blocked {
+  background: oklch(0.30 0.05 25); border-color: oklch(0.42 0.07 25);
+  color: oklch(0.86 0.10 25);
+}
+
+/* Bento tiles, у которых светлые фоновые градиенты */
+[data-theme="dark"] .tile-spark {
+  background: oklch(0.24 0.02 250);
+  border-color: oklch(0.32 0.03 250);
+}
+
+[data-theme="dark"] .tile-map {
+  background: linear-gradient(160deg, oklch(0.26 0.025 80), oklch(0.24 0.03 250));
+}
+[data-theme="dark"] .tile-map .map-vis {
+  background:
+    radial-gradient(circle at 30% 40%, oklch(0.32 0.04 80) 0%, transparent 25%),
+    radial-gradient(circle at 70% 60%, oklch(0.32 0.04 250) 0%, transparent 25%),
+    oklch(0.20 0.01 60);
+  border-color: oklch(0.32 0.01 60);
+}
+[data-theme="dark"] .map-pin {
+  background: oklch(0.92 0.005 60);
+  box-shadow: 0 0 0 4px oklch(0.92 0.005 60 / 0.15);
+}
+@keyframes lp-pin-pulse-dark {
+  0%, 100% { box-shadow: 0 0 0 4px oklch(0.92 0.005 60 / 0.15); }
+  50% { box-shadow: 0 0 0 10px oklch(0.92 0.005 60 / 0.05); }
+}
+[data-theme="dark"] .map-pin { animation-name: lp-pin-pulse-dark; }
+
 /* ===== Responsive ===== */
 @media (max-width: 960px) {
   .lp-hero { grid-template-columns: 1fr; gap: 40px; }
