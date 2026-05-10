@@ -561,12 +561,6 @@ function SessionCard({ session, revoking, onRevoke }: SessionCardProps) {
           <span className="h-2">{ua.browser}</span>
           <span className="t-small dim">·</span>
           <span className="t-small">{ua.os}</span>
-          {session.is_current && (
-            <span className="badge active" style={{ marginLeft: 'auto' }}>
-              <span className="dot" />
-              Текущая
-            </span>
-          )}
         </div>
 
         <div
@@ -594,7 +588,12 @@ function SessionCard({ session, revoking, onRevoke }: SessionCardProps) {
         </div>
       </div>
 
-      {!session.is_current && (
+      {session.is_current ? (
+        <span className="badge active" style={{ flex: 'none', alignSelf: 'center' }}>
+          <span className="dot" />
+          Текущая
+        </span>
+      ) : (
         <Button
           variant="danger"
           size="sm"
