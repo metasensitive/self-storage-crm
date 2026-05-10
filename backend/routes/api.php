@@ -24,7 +24,7 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
 
     // защищённые маршруты (только авторизованные)
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', \App\Http\Middleware\RefreshTokenMetadata::class])->group(function () {
 
         // выход
         Route::post('auth/logout', [AuthController::class, 'logout']);

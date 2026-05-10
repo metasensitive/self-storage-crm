@@ -76,11 +76,18 @@ export function Sidebar() {
       </NavLink>
 
       <div className="sidebar-foot">
-        <button
-          ref={pillRef}
-          type="button"
+        <div
+          ref={pillRef as unknown as React.RefObject<HTMLDivElement>}
+          role="button"
+          tabIndex={0}
           className="user-pill user-pill-btn"
           onClick={() => setSwitcherOpen((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setSwitcherOpen((v) => !v);
+            }
+          }}
           aria-haspopup="dialog"
           aria-expanded={switcherOpen}
           title="Переключить аккаунт"
@@ -105,15 +112,15 @@ export function Sidebar() {
               {user.email}
             </div>
           </div>
-          <Ic name="chev_d" size={14} className="ic" />
-        </button>
-
-        <div className="row gap-2 mt-2" style={{ paddingLeft: 8, paddingRight: 4 }}>
           <IconButton
             icon={isDark ? 'sun' : 'moon'}
             label={isDark ? 'Светлая тема' : 'Тёмная тема'}
-            onClick={toggleTheme}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleTheme();
+            }}
           />
+          <Ic name="chev_d" size={14} className="ic" />
         </div>
 
         <AccountSwitcher
