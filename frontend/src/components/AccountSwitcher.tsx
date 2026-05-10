@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { getToken } from '@/api/client';
+import { accountsStore } from '@/lib/accounts';
 import { Avatar } from './ui/Avatar';
 import { Button, IconButton } from './ui/Button';
 import { useToast } from './ui/Toast';
@@ -70,9 +72,23 @@ export function AccountSwitcher({ open, onClose, anchorRef }: AccountSwitcherPro
   }
 
   function handleAdd() {
+    // Гарантируем что текущий аккаунт точно есть в localStorage перед уходом
+    // на /login — иначе после нового логина переключиться обратно будет не на что
+    // (например, если юзер залогинен сессией, созданной до появления мульти-аккаунтов).
+    if (user) {
+      const token = getToken();
+      if (token) {
+        accountsStore.upsert({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar_url: user.avatar_url,
+          token,
+        });
+      }
+    }
     onClose();
-    // Не делаем logout — текущий токен и аккаунт сохранены в accounts.
-    // На /login после успеха новый токен добавится в accounts через AuthContext.login.
     navigate('/login', { state: { addAccount: true } });
   }
 
