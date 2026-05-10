@@ -531,6 +531,7 @@ function SessionCard({ session, revoking, onRevoke }: SessionCardProps) {
         display: 'flex',
         gap: 14,
         padding: 14,
+        alignItems: 'center',
         border: '1px solid var(--line)',
         borderRadius: 'var(--r-md)',
         background: session.is_current ? 'var(--bg-muted)' : 'var(--bg-elev)',
@@ -553,7 +554,10 @@ function SessionCard({ session, revoking, onRevoke }: SessionCardProps) {
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="row gap-2" style={{ alignItems: 'center', marginBottom: 4 }}>
+        <div
+          className="row gap-2"
+          style={{ alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}
+        >
           <span className="h-2">{ua.browser}</span>
           <span className="t-small dim">·</span>
           <span className="t-small">{ua.os}</span>
@@ -567,23 +571,24 @@ function SessionCard({ session, revoking, onRevoke }: SessionCardProps) {
 
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '4px 16px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '4px 18px',
             fontSize: 12.5,
             color: 'var(--ink-3)',
+            lineHeight: 1.5,
           }}
         >
-          <span>
+          <span style={{ whiteSpace: 'nowrap' }}>
             <strong style={{ color: 'var(--ink-2)' }}>IP:</strong>{' '}
             <span className="mono">{session.ip_address ?? '—'}</span>
           </span>
-          <span>
+          <span style={{ whiteSpace: 'nowrap' }}>
             <strong style={{ color: 'var(--ink-2)' }}>Создана:</strong>{' '}
             {fmtDate(session.created_at)}
           </span>
-          <span>
-            <strong style={{ color: 'var(--ink-2)' }}>Последняя активность:</strong>{' '}
+          <span style={{ whiteSpace: 'nowrap' }}>
+            <strong style={{ color: 'var(--ink-2)' }}>Активность:</strong>{' '}
             {session.last_used_at ? fmtDateTime(session.last_used_at) : 'не использовалась'}
           </span>
         </div>
@@ -596,6 +601,7 @@ function SessionCard({ session, revoking, onRevoke }: SessionCardProps) {
           icon="logout"
           loading={revoking}
           onClick={onRevoke}
+          style={{ flex: 'none', alignSelf: 'center', whiteSpace: 'nowrap' }}
         >
           Завершить
         </Button>
