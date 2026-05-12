@@ -12,6 +12,14 @@
 
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
 
+/**
+ * Адресные классы OSM. Всё остальное (`shop`, `amenity`, `office`, `tourism`,
+ * `historic`, `leisure` и т.п.) — это POI на адресе, а не сам адрес. Если их
+ * не отсекать, на запрос «улица Герцена, 3» возвращается 5 раз один и тот же
+ * дом с разными названиями организаций.
+ */
+const ADDRESS_CLASSES = new Set(['place', 'highway', 'building']);
+
 interface NominatimAddress {
   road?: string;
   house_number?: string;
@@ -99,11 +107,13 @@ export async function searchAddress(
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];
 
+  const limit = opts.limit ?? 6;
   const params = new URLSearchParams({
     q: trimmed,
     format: 'json',
     addressdetails: '1',
-    limit: String(opts.limit ?? 6),
+    // Берём с запасом — после фильтрации по классу и дедупа останется меньше.
+    limit: String(Math.max(limit * 3, 15)),
     'accept-language': 'ru',
   });
   if (opts.countryCodes && opts.countryCodes.length > 0) {
@@ -118,5 +128,19 @@ export async function searchAddress(
     throw new Error(`Geocoding failed: ${res.status}`);
   }
   const items = (await res.json()) as NominatimItem[];
-  return items.filter((i) => i.lat && i.lon).map(toSuggestion);
+
+  const seen = new Set<string>();
+  const out: AddressSuggestion[] = [];
+  for (const item of items) {
+    if (!item.lat || !item.lon) continue;
+    // Оставляем только адресные классы — POI вроде магазинов отбрасываем.
+    if (item.class && !ADDRESS_CLASSES.has(item.class)) continue;
+    // Дедупликация по координатам (~1 м) — отсекает POI на одном здании.
+    const key = `${Number(item.lat).toFixed(5)}|${Number(item.lon).toFixed(5)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(toSuggestion(item));
+    if (out.length >= limit) break;
+  }
+  return out;
 }
