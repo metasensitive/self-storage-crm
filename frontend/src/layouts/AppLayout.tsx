@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
-import { TweaksPanel } from '@/components/TweaksPanel';
 
 export function AppLayout() {
   return (
@@ -9,7 +8,6 @@ export function AppLayout() {
       <main className="main">
         <Outlet />
       </main>
-      <TweaksPanel />
     </div>
   );
 }
