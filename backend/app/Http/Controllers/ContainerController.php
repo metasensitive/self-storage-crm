@@ -56,7 +56,14 @@ class ContainerController extends Controller
      */
     public function store(StoreContainerRequest $request): JsonResponse
     {
-        $container = Container::create($request->validated());
+        $data = $request->validated();
+
+        // Если код не передан с клиента — генерируем следующий по шаблону «C-NNN».
+        if (empty($data['code'])) {
+            $data['code'] = $this->generateNextCode();
+        }
+
+        $container = Container::create($data);
 
         Log::info('Контейнер создан', [
             'user_id' => $request->user()->id,
@@ -70,6 +77,28 @@ class ContainerController extends Controller
             'message' => 'Контейнер создан',
             'data' => new ContainerResource($container),
         ], 201);
+    }
+
+    /**
+     * Возвращает следующий свободный код контейнера в формате «C-NNN»
+     * (минимум 3 цифры с ведущими нулями). При коллизии — увеличивает счётчик
+     * до свободного значения.
+     */
+    private function generateNextCode(): string
+    {
+        $maxSuffix = Container::where('code', 'like', 'C-%')
+            ->pluck('code')
+            ->map(fn ($c) => (int) substr((string) $c, 2))
+            ->filter()
+            ->max() ?? 0;
+
+        $next = $maxSuffix + 1;
+        do {
+            $code = 'C-' . str_pad((string) $next, 3, '0', STR_PAD_LEFT);
+            $next++;
+        } while (Container::where('code', $code)->exists());
+
+        return $code;
     }
 
     /**
