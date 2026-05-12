@@ -1,48 +1,55 @@
 /**
- * Геокодинг через Nominatim (OpenStreetMap).
+ * Геокодинг через Photon (https://photon.komoot.io).
  *
- * Не требует API-ключа, поддерживает CORS, работает прямо из браузера.
- * Лимит — 1 запрос/сек (соблюдаем через debounce на стороне UI).
+ * Photon — публичный бесплатный сервис от Komoot, построенный на тех же
+ * данных OSM, что и Nominatim, но специально заточенный под автокомплит:
+ * prefix matching, ранжирование по релевантности, быстрый ответ, CORS.
  *
- * Если в будущем потребуется точность Яндекс/2GIS — реализация изоморфная,
- * меняется только эта функция (формат AddressSuggestion остаётся прежним).
+ * Контракт `AddressSuggestion` совместим с прежней реализацией (Nominatim).
  *
- * Документация: https://nominatim.org/release-docs/develop/api/Search/
+ * Особенности:
+ * — `lang=default` — Photon публичный инстанс не поддерживает `lang=ru`,
+ *   но `default` отдаёт локальные названия (для РФ — кириллицу).
+ * — Имя POI (`name`) в `displayName` НЕ включается — иначе магазин/мастерская
+ *   на доме №3 показывалась бы как отдельный пункт. Без `name` пять разных
+ *   POI на одном здании схлопываются дедупом по `(address, city)`.
+ *
+ * Документация: https://github.com/komoot/photon
  */
 
-const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
+const ENDPOINT = 'https://photon.komoot.io/api/';
 
-/**
- * Адресные классы OSM. Всё остальное (`shop`, `amenity`, `office`, `tourism`,
- * `historic`, `leisure` и т.п.) — это POI на адресе, а не сам адрес. Если их
- * не отсекать, на запрос «улица Герцена, 3» возвращается 5 раз один и тот же
- * дом с разными названиями организаций.
- */
-const ADDRESS_CLASSES = new Set(['place', 'highway', 'building']);
+// Photon bbox: lon_min,lat_min,lon_max,lat_max — РФ целиком.
+const RU_BBOX = '19.5,41.2,180,81.9';
 
-interface NominatimAddress {
-  road?: string;
-  house_number?: string;
-  neighbourhood?: string;
-  suburb?: string;
-  city?: string;
-  town?: string;
-  village?: string;
-  municipality?: string;
-  state?: string;
-  region?: string;
+interface PhotonProperties {
+  osm_id?: number;
+  osm_type?: string;
+  osm_key?: string;
+  osm_value?: string;
+  name?: string;
   country?: string;
-  country_code?: string;
+  countrycode?: string;
+  state?: string;
+  county?: string;
+  city?: string;
+  district?: string;
+  locality?: string;
+  street?: string;
+  housenumber?: string;
+  postcode?: string;
+  type?: string;
 }
 
-interface NominatimItem {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
-  address?: NominatimAddress;
-  type?: string;
-  class?: string;
+interface PhotonFeature {
+  type?: 'Feature';
+  geometry?: { type?: 'Point'; coordinates?: [number, number] };
+  properties?: PhotonProperties;
+}
+
+interface PhotonResponse {
+  type?: 'FeatureCollection';
+  features?: PhotonFeature[];
 }
 
 export interface AddressSuggestion {
@@ -59,38 +66,60 @@ export interface AddressSuggestion {
   longitude: number;
 }
 
-function pickCity(addr: NominatimAddress | undefined): string {
-  if (!addr) return '';
-  return (
-    addr.city ||
-    addr.town ||
-    addr.village ||
-    addr.municipality ||
-    addr.suburb ||
-    addr.state ||
-    addr.region ||
-    ''
-  );
+function pickCity(p: PhotonProperties): string {
+  return p.city || p.locality || p.district || p.state || '';
 }
 
-function pickAddress(item: NominatimItem): string {
-  const a = item.address;
-  if (a?.road) {
-    return a.house_number ? `${a.road}, ${a.house_number}` : a.road;
+function pickAddress(p: PhotonProperties): string {
+  if (p.street) {
+    return p.housenumber ? `${p.street}, ${p.housenumber}` : p.street;
   }
-  // Fallback: первые два сегмента display_name (обычно «Объект, Улица, …»)
-  const parts = item.display_name.split(',').map((s) => s.trim()).filter(Boolean);
-  return parts.slice(0, 2).join(', ') || item.display_name;
+  // Для городов/посёлков/областей — берём `name` как адресный заголовок.
+  if (p.name && p.osm_key && (p.osm_key === 'place' || p.osm_key === 'building')) {
+    return p.name;
+  }
+  return p.city || p.locality || p.district || '';
 }
 
-function toSuggestion(item: NominatimItem): AddressSuggestion {
+function buildDisplayName(p: PhotonProperties): string {
+  // Главная строка адреса (улица+дом или название места) — БЕЗ POI-`name`,
+  // чтобы повторы магазинов/амбулаторий на одном здании дедуплицировались.
+  const head = p.street
+    ? p.housenumber
+      ? `${p.street}, ${p.housenumber}`
+      : p.street
+    : p.osm_key === 'place' || p.osm_key === 'building'
+      ? p.name || ''
+      : '';
+
+  const city = p.city || p.locality || '';
+  const state = p.state;
+
+  const parts: string[] = [];
+  if (head) parts.push(head);
+  if (city && city !== head) parts.push(city);
+  if (state && state !== city) parts.push(state);
+  if (p.country) parts.push(p.country);
+  return parts.filter(Boolean).join(', ');
+}
+
+function toSuggestion(feature: PhotonFeature, idx: number): AddressSuggestion | null {
+  const coords = feature.geometry?.coordinates;
+  if (!Array.isArray(coords) || coords.length !== 2) return null;
+  const [lon, lat] = coords;
+  if (typeof lon !== 'number' || typeof lat !== 'number') return null;
+
+  const p = feature.properties || {};
+  const address = pickAddress(p);
+  if (!address) return null; // без читаемого адреса в выдаче не показываем
+
   return {
-    id: String(item.place_id),
-    displayName: item.display_name,
-    city: pickCity(item.address),
-    address: pickAddress(item),
-    latitude: Number(item.lat),
-    longitude: Number(item.lon),
+    id: `${idx}-${lat.toFixed(5)}-${lon.toFixed(5)}`,
+    displayName: buildDisplayName(p) || address,
+    city: pickCity(p),
+    address,
+    latitude: lat,
+    longitude: lon,
   };
 }
 
@@ -107,17 +136,16 @@ export async function searchAddress(
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];
 
-  const limit = opts.limit ?? 6;
+  const limit = opts.limit ?? 8;
   const params = new URLSearchParams({
     q: trimmed,
-    format: 'json',
-    addressdetails: '1',
-    // Берём с запасом — после фильтрации по классу и дедупа останется меньше.
+    lang: 'default',
+    // Просим больше — после семантического дедупа останется меньше.
     limit: String(Math.max(limit * 3, 15)),
-    'accept-language': 'ru',
   });
-  if (opts.countryCodes && opts.countryCodes.length > 0) {
-    params.set('countrycodes', opts.countryCodes.join(','));
+
+  if (opts.countryCodes?.map((c) => c.toLowerCase()).includes('ru')) {
+    params.set('bbox', RU_BBOX);
   }
 
   const res = await fetch(`${ENDPOINT}?${params.toString()}`, {
@@ -127,19 +155,25 @@ export async function searchAddress(
   if (!res.ok) {
     throw new Error(`Geocoding failed: ${res.status}`);
   }
-  const items = (await res.json()) as NominatimItem[];
+  const data = (await res.json()) as PhotonResponse;
 
+  // Семантический дедуп: одинаковые `(address, city)` — это либо POI на одном
+  // здании, либо буквально один и тот же объект, проиндексированный дважды.
   const seen = new Set<string>();
   const out: AddressSuggestion[] = [];
-  for (const item of items) {
-    if (!item.lat || !item.lon) continue;
-    // Оставляем только адресные классы — POI вроде магазинов отбрасываем.
-    if (item.class && !ADDRESS_CLASSES.has(item.class)) continue;
-    // Дедупликация по координатам (~1 м) — отсекает POI на одном здании.
-    const key = `${Number(item.lat).toFixed(5)}|${Number(item.lon).toFixed(5)}`;
+  for (const feat of data.features ?? []) {
+    // Опциональная фильтрация по стране — если bbox недостаточно жёсткий.
+    if (opts.countryCodes && opts.countryCodes.length > 0) {
+      const cc = (feat.properties?.countrycode || '').toLowerCase();
+      const want = opts.countryCodes.map((c) => c.toLowerCase());
+      if (cc && !want.includes(cc)) continue;
+    }
+    const s = toSuggestion(feat, out.length);
+    if (!s) continue;
+    const key = `${s.address.toLowerCase()}|${s.city.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(toSuggestion(item));
+    out.push(s);
     if (out.length >= limit) break;
   }
   return out;
