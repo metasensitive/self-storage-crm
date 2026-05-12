@@ -22,6 +22,8 @@ import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtDateShort } from '@/lib/format';
+import { fetchAllPages, type CsvColumn } from '@/lib/export';
+import { ExportButton } from '@/components/ExportButton';
 import type { Container, ContainerStatus } from '@/api/types';
 
 const STATUS_OPTIONS: Array<{ value: ContainerStatus | 'all'; label: string }> = [
@@ -38,6 +40,17 @@ const STATUS_LABEL: Record<ContainerStatus, string> = {
   inactive: 'Неактивен',
   maintenance: 'Обслуживание',
 };
+
+const CONTAINERS_CSV_COLUMNS: ReadonlyArray<CsvColumn<Container>> = [
+  { header: 'ID', cell: (c) => c.id },
+  { header: 'Код', cell: (c) => c.code },
+  { header: 'Локация', cell: (c) => c.location?.name ?? '' },
+  { header: 'Город', cell: (c) => c.location?.city ?? '' },
+  { header: 'Кладовки', cell: (c) => c.units_count },
+  { header: 'Статус', cell: (c) => STATUS_LABEL[c.status] ?? c.status },
+  { header: 'Установлен', cell: (c) => c.installed_at ?? '' },
+  { header: 'Создан', cell: (c) => c.created_at },
+];
 
 const schema = z.object({
   location_id: z
@@ -133,11 +146,29 @@ export default function ContainersPage() {
       <Topbar
         crumbs={['Контейнеры']}
         actions={
-          isAdmin && (
-            <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
-              Новый контейнер
-            </Button>
-          )
+          <>
+            <ExportButton<Container>
+              filename="containers"
+              columns={CONTAINERS_CSV_COLUMNS}
+              // Уважаем активные фильтры — экспортируем то же, что видно в таблице
+              fetchRows={() =>
+                fetchAllPages((page) =>
+                  containersApi.list({
+                    page,
+                    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+                    ...(locationFilter !== 'all'
+                      ? { location_id: locationFilter as number }
+                      : {}),
+                  }),
+                )
+              }
+            />
+            {isAdmin && (
+              <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
+                Новый контейнер
+              </Button>
+            )}
+          </>
         }
       />
       <div className="content">

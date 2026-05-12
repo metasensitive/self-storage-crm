@@ -15,7 +15,41 @@ import { locationsApi } from '@/api/locations';
 import { rentsApi } from '@/api/rents';
 import { queryKeys } from '@/lib/queryKeys';
 import { fmtMoney, pluralize } from '@/lib/format';
-import type { LocationAnalytics, Rent } from '@/api/types';
+import { type CsvColumn } from '@/lib/export';
+import { ExportButton } from '@/components/ExportButton';
+import type { Location, LocationAnalytics, Rent } from '@/api/types';
+
+interface RankedRow {
+  location: Location;
+  stats: LocationAnalytics | undefined;
+}
+
+// Колонки фильтруют по наличию stats — экспортируем только подгруженные строки.
+const LOCATIONS_REPORT_COLUMNS: ReadonlyArray<CsvColumn<RankedRow>> = [
+  { header: 'Локация', cell: (r) => r.location.name },
+  { header: 'Город', cell: (r) => r.location.city },
+  { header: 'Всего кладовок', cell: (r) => r.stats?.total_units ?? '' },
+  { header: 'Занято', cell: (r) => r.stats?.occupied_units ?? '' },
+  { header: 'Арендовано', cell: (r) => r.stats?.rented_units ?? '' },
+  { header: 'Резерв', cell: (r) => r.stats?.reserved_units ?? '' },
+  { header: 'Свободно', cell: (r) => r.stats?.free_units ?? '' },
+  { header: 'Заблокировано', cell: (r) => r.stats?.blocked_units ?? '' },
+  {
+    header: 'Заполняемость, %',
+    cell: (r) => (r.stats ? Math.round(r.stats.occupancy_percent) : ''),
+  },
+  { header: 'Доход за месяц, ₽', cell: (r) => r.stats?.monthly_income ?? '' },
+];
+
+interface RevenuePoint {
+  date: string;
+  value: number;
+}
+
+const REVENUE_REPORT_COLUMNS: ReadonlyArray<CsvColumn<RevenuePoint>> = [
+  { header: 'Дата', cell: (p) => p.date },
+  { header: 'Доход, ₽', cell: (p) => p.value },
+];
 
 type SortKey = 'income' | 'occupancy' | 'units';
 type PeriodDays = 7 | 30 | 90;
@@ -116,7 +150,27 @@ export default function AnalyticsPage() {
 
   return (
     <>
-      <Topbar crumbs={['Аналитика']} />
+      <Topbar
+        crumbs={['Аналитика']}
+        actions={
+          <>
+            <ExportButton<RankedRow>
+              filename="analytics-locations"
+              label="Экспорт локаций"
+              columns={LOCATIONS_REPORT_COLUMNS}
+              disabled={ranked.length === 0}
+              fetchRows={async () => ranked.filter((r) => r.stats != null)}
+            />
+            <ExportButton<RevenuePoint>
+              filename={`analytics-revenue-${revenuePeriod}d`}
+              label="Экспорт дохода"
+              columns={REVENUE_REPORT_COLUMNS}
+              disabled={!hasRevenue}
+              fetchRows={async () => revenueSeries}
+            />
+          </>
+        }
+      />
       <div className="content">
         <div className="page-head">
           <div className="title">

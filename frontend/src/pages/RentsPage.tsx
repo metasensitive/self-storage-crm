@@ -23,7 +23,32 @@ import { locationsApi } from '@/api/locations';
 import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { fmtDate, fmtMoney, pluralize } from '@/lib/format';
+import { fetchAllPages, type CsvColumn } from '@/lib/export';
+import { ExportButton } from '@/components/ExportButton';
 import type { Rent, RentStatus, Unit } from '@/api/types';
+
+const RENT_STATUS_LABEL: Record<RentStatus, string> = {
+  active: 'Активна',
+  finished: 'Завершена',
+  cancelled: 'Отменена',
+};
+
+const RENTS_CSV_COLUMNS: ReadonlyArray<CsvColumn<Rent>> = [
+  { header: 'ID', cell: (r) => r.id },
+  { header: 'Контейнер', cell: (r) => r.unit?.container?.code ?? '' },
+  { header: 'Кладовка №', cell: (r) => r.unit?.number ?? '' },
+  { header: 'Локация', cell: (r) => r.unit?.container?.location?.name ?? '' },
+  { header: 'Город', cell: (r) => r.unit?.container?.location?.city ?? '' },
+  { header: 'Дата начала', cell: (r) => r.date_from },
+  { header: 'Дата окончания', cell: (r) => r.date_to },
+  {
+    header: 'Дней',
+    cell: (r) => dayjs(r.date_to).diff(dayjs(r.date_from), 'day') + 1,
+  },
+  { header: 'Сумма, ₽', cell: (r) => r.price },
+  { header: 'Статус', cell: (r) => RENT_STATUS_LABEL[r.status] ?? r.status },
+  { header: 'Создана', cell: (r) => r.created_at },
+];
 
 const STATUS_OPTIONS: Array<{ value: RentStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Все статусы' },
@@ -104,14 +129,31 @@ export default function RentsPage() {
       <Topbar
         crumbs={['Аренды']}
         actions={
-          <Button
-            variant="primary"
-            size="sm"
-            icon="plus"
-            onClick={() => setCreating({ open: true })}
-          >
-            Оформить аренду
-          </Button>
+          <>
+            <ExportButton<Rent>
+              filename="rents"
+              columns={RENTS_CSV_COLUMNS}
+              fetchRows={() =>
+                fetchAllPages((page) =>
+                  rentsApi.list({
+                    page,
+                    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+                    ...(locationFilter !== 'all'
+                      ? { location_id: locationFilter as number }
+                      : {}),
+                  }),
+                )
+              }
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              icon="plus"
+              onClick={() => setCreating({ open: true })}
+            >
+              Оформить аренду
+            </Button>
+          </>
         }
       />
       <div className="content">
