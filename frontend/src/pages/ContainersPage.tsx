@@ -44,7 +44,9 @@ const schema = z.object({
     .number({ invalid_type_error: 'Выберите локацию' })
     .int()
     .positive('Выберите локацию'),
-  code: z.string().min(1, 'Код обязателен').max(50, 'Максимум 50 символов'),
+  // Для создания — поле скрыто и бэк генерирует код. Для редактирования —
+  // показывается и должно быть непустым.
+  code: z.string().max(50, 'Максимум 50 символов').optional(),
   status: z.enum(['active', 'inactive', 'maintenance']),
   installed_at: z
     .string()
@@ -478,7 +480,7 @@ function ContainerFormModal({
         }
       : {
           location_id: 0,
-          code: '',
+          code: undefined,
           status: 'active',
           installed_at: undefined,
         },
@@ -491,11 +493,15 @@ function ContainerFormModal({
       // При создании отправляем 1, при редактировании сохраняем существующее значение.
       const payload: ContainerPayload = {
         location_id: values.location_id,
-        code: values.code,
         units_count: container?.units_count ?? 1,
         status: values.status,
         installed_at: values.installed_at ?? null,
       };
+      // Код передаём только в режиме редактирования. При создании бэкенд
+      // сгенерирует следующий свободный «C-NNN».
+      if (mode === 'edit' && values.code) {
+        payload.code = values.code;
+      }
       const saved =
         mode === 'create'
           ? await containersApi.create(payload)
@@ -525,9 +531,23 @@ function ContainerFormModal({
             ))}
           </Select>
         </Field>
-        <Field label="Код" error={errors.code?.message} hint="Уникальный идентификатор">
-          <Input placeholder="C-001" {...register('code')} />
-        </Field>
+        {mode === 'edit' ? (
+          <Field label="Код" error={errors.code?.message} hint="Уникальный идентификатор">
+            <Input placeholder="C-001" {...register('code')} />
+          </Field>
+        ) : (
+          <div
+            className="t-small"
+            style={{
+              padding: '8px 12px',
+              border: '1px dashed var(--line-2)',
+              borderRadius: 'var(--r-md)',
+              color: 'var(--ink-3)',
+            }}
+          >
+            Код контейнера будет сгенерирован автоматически в формате «C-NNN».
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Статус" error={errors.status?.message}>
             <Select {...register('status')}>

@@ -14,7 +14,8 @@ export interface ContainersListParams {
 
 export interface ContainerPayload {
   location_id: number;
-  code: string;
+  /** При создании можно не передавать — бэкенд сгенерирует следующий по шаблону «C-NNN». */
+  code?: string;
   units_count: number;
   status: ContainerStatus;
   installed_at?: string | null;

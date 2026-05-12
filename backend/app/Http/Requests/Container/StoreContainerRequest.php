@@ -24,7 +24,10 @@ class StoreContainerRequest extends FormRequest
     {
         return [
             'location_id' => ['required', 'integer', 'exists:locations,id'],
-            'code' => ['required', 'string', 'max:50', 'unique:containers,code'],
+            // Код — опциональный. Если не передан, контроллер сгенерирует
+            // следующий по шаблону «C-NNN». Передача допускается на случай
+            // ручного управления нумерацией.
+            'code' => ['nullable', 'string', 'max:50', 'unique:containers,code'],
             'units_count' => ['required', 'integer', 'min:1', 'max:100'],
             'status' => ['required', 'string', 'in:active,inactive,maintenance'],
             'installed_at' => ['nullable', 'date'],
@@ -36,7 +39,6 @@ class StoreContainerRequest extends FormRequest
         return [
             'location_id.required' => 'Локация обязательна',
             'location_id.exists' => 'Указанная локация не существует',
-            'code.required' => 'Код контейнера обязателен',
             'code.unique' => 'Контейнер с таким кодом уже существует',
             'code.max' => 'Код не должен превышать 50 символов',
             'units_count.required' => 'Количество кладовок обязательно',
