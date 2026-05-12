@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -20,10 +20,8 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { rentsApi } from '@/api/rents';
 import { unitsApi } from '@/api/units';
 import { locationsApi } from '@/api/locations';
-import { containersApi } from '@/api/containers';
 import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
-import { buildContainerMap } from '@/lib/enrich';
 import { fmtDate, fmtMoney, pluralize } from '@/lib/format';
 import type { Rent, RentStatus, Unit } from '@/api/types';
 
@@ -82,56 +80,8 @@ export default function RentsPage() {
     queryFn: () => locationsApi.list({ page: 1 }),
   });
 
-  const containersQ = useQuery({
-    queryKey: queryKeys.containers.list({ all: true }),
-    queryFn: () => containersApi.list({ page: 1 }),
-  });
-
-  const containerMap = useMemo(
-    () => buildContainerMap(containersQ.data?.data ?? []),
-    [containersQ.data],
-  );
-
   const items = useMemo(() => listQ.data?.data ?? [], [listQ.data]);
   const meta = listQ.data?.meta;
-
-  // Бэкенд в RentResource не отдаёт rent.unit.container из-за известного бага
-  // с whenLoaded() через dot-нотацию. Подгружаем юниты отдельно по id —
-  // у /units/{id} container.id точно есть, а кеш TanStack Query
-  // дедуплицирует запросы между страницами.
-  const uniqueUnitIds = useMemo(() => {
-    const set = new Set<number>();
-    for (const r of items) {
-      if (r.unit?.id != null) set.add(r.unit.id);
-    }
-    return Array.from(set);
-  }, [items]);
-
-  const unitsForRents = useQueries({
-    queries: uniqueUnitIds.map((id) => ({
-      queryKey: queryKeys.units.detail(id),
-      queryFn: () => unitsApi.show(id),
-      staleTime: 60_000,
-    })),
-  });
-
-  const unitMap = useMemo(() => {
-    const m = new Map<number, Unit>();
-    for (const q of unitsForRents) {
-      if (q.data) m.set(q.data.id, q.data);
-    }
-    return m;
-  }, [unitsForRents]);
-
-  function resolveCodeAndLocation(rent: Rent) {
-    const unitId = rent.unit?.id;
-    const fullUnit = unitId != null ? unitMap.get(unitId) : undefined;
-    const containerId = fullUnit?.container?.id ?? rent.unit?.container?.id;
-    const cont = containerId != null ? containerMap.get(containerId) : undefined;
-    const code = cont?.code ?? fullUnit?.container?.code ?? rent.unit?.container?.code;
-    const loc = cont?.location ?? fullUnit?.container?.location ?? rent.unit?.container?.location;
-    return { code, loc };
-  }
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.rents.all });
@@ -237,7 +187,8 @@ export default function RentsPage() {
               </thead>
               <tbody>
                 {items.map((r) => {
-                  const { code, loc } = resolveCodeAndLocation(r);
+                  const code = r.unit?.container?.code;
+                  const loc = r.unit?.container?.location;
                   const days = dayjs(r.date_to).diff(dayjs(r.date_from), 'day') + 1;
                   return (
                     <tr key={r.id} onClick={() => setDrawerRent(r)}>
@@ -313,8 +264,8 @@ export default function RentsPage() {
         {drawerRent && (
           <RentDrawerContent
             rent={drawerRent}
-            code={resolveCodeAndLocation(drawerRent).code}
-            loc={resolveCodeAndLocation(drawerRent).loc}
+            code={drawerRent.unit?.container?.code}
+            loc={drawerRent.unit?.container?.location}
             onClose={() => setDrawerRent(null)}
             onFinish={() => finishMut.mutate(drawerRent.id)}
             finishing={finishMut.isPending}

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { unitsApi } from '@/api/units';
 import dayjs from 'dayjs';
 import { Topbar } from '@/components/Topbar';
 import { Empty } from '@/components/ui/Empty';
@@ -17,11 +16,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { analyticsApi } from '@/api/analytics';
 import { locationsApi } from '@/api/locations';
 import { rentsApi } from '@/api/rents';
-import { containersApi } from '@/api/containers';
 import { queryKeys } from '@/lib/queryKeys';
-import { buildContainerMap } from '@/lib/enrich';
 import { fmtDate, fmtMoney, pluralize } from '@/lib/format';
-import type { Rent, Unit } from '@/api/types';
+import type { Rent } from '@/api/types';
 
 function greeting(name: string): string {
   const h = new Date().getHours();
@@ -85,16 +82,6 @@ export default function DashboardPage() {
 
   const [revenuePeriod, setRevenuePeriod] = useState<PeriodDays>(30);
 
-  const containersQ = useQuery({
-    queryKey: queryKeys.containers.list({ all: true }),
-    queryFn: () => containersApi.list({ page: 1 }),
-  });
-
-  const containerMap = useMemo(
-    () => buildContainerMap(containersQ.data?.data ?? []),
-    [containersQ.data],
-  );
-
   // Аналитика для топ-5 локаций — параллельные запросы
   const topLocations = locationsQ.data?.data.slice(0, 5) ?? [];
   const locationStatsQ = useQueries({
@@ -104,34 +91,6 @@ export default function DashboardPage() {
       enabled: topLocations.length > 0,
     })),
   });
-
-  // Подгружаем unit-детали по уникальным id, чтобы достать container_id
-  // (RentResource на бэке не отдаёт rent.unit.container из-за бага whenLoaded).
-  const expiringUnitIds = useMemo(() => {
-    const today = dayjs().startOf('day');
-    const set = new Set<number>();
-    for (const r of activeRentsQ.data?.data ?? []) {
-      const days = dayjs(r.date_to).startOf('day').diff(today, 'day');
-      if (days >= 0 && days <= 7 && r.unit?.id != null) set.add(r.unit.id);
-    }
-    return Array.from(set);
-  }, [activeRentsQ.data]);
-
-  const expiringUnitsQ = useQueries({
-    queries: expiringUnitIds.map((id) => ({
-      queryKey: queryKeys.units.detail(id),
-      queryFn: () => unitsApi.show(id),
-      staleTime: 60_000,
-    })),
-  });
-
-  const unitDetailMap = useMemo(() => {
-    const m = new Map<number, Unit>();
-    for (const q of expiringUnitsQ) {
-      if (q.data) m.set(q.data.id, q.data);
-    }
-    return m;
-  }, [expiringUnitsQ]);
 
   const expiringRents = useMemo(() => {
     const list = activeRentsQ.data?.data ?? [];
@@ -515,11 +474,8 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {expiringRents.map(({ rent, days }) => {
-                      const fullUnit = rent.unit?.id != null ? unitDetailMap.get(rent.unit.id) : undefined;
-                      const containerId = fullUnit?.container?.id ?? rent.unit?.container?.id;
-                      const cont = containerId != null ? containerMap.get(containerId) : undefined;
-                      const code = cont?.code ?? fullUnit?.container?.code ?? rent.unit?.container?.code;
-                      const loc = cont?.location ?? fullUnit?.container?.location ?? rent.unit?.container?.location;
+                      const code = rent.unit?.container?.code;
+                      const loc = rent.unit?.container?.location;
                       const dayLabel =
                         days === 0
                           ? 'сегодня'

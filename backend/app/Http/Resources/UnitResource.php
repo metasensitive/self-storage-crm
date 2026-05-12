@@ -24,11 +24,16 @@ class UnitResource extends JsonResource
             'container' => $this->whenLoaded('container', fn() => [
                 'id' => $this->container->id,
                 'code' => $this->container->code,
-                'location' => $this->whenLoaded('container.location', fn() => [
-                    'id' => $this->container->location->id,
-                    'name' => $this->container->location->name,
-                    'city' => $this->container->location->city,
-                ]),
+                // relationLoaded на самой container-модели — корректная замена
+                // dot-нотации в whenLoaded(), которая не поддерживается.
+                'location' => $this->container->relationLoaded('location')
+                    && $this->container->location
+                    ? [
+                        'id' => $this->container->location->id,
+                        'name' => $this->container->location->name,
+                        'city' => $this->container->location->city,
+                    ]
+                    : null,
             ]),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
