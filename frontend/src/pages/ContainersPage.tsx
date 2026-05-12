@@ -218,7 +218,7 @@ export default function ContainersPage() {
                 <tr>
                   <th>Код</th>
                   <th>Локация</th>
-                  <th className="num">Кладовки</th>
+                  <th style={{ textAlign: 'center' }}>Кладовки</th>
                   <th>Статус</th>
                   <th>Установлен</th>
                   <th></th>
@@ -242,7 +242,9 @@ export default function ContainersPage() {
                         <span className="dim">—</span>
                       )}
                     </td>
-                    <td className="num tnum">{c.units_count}</td>
+                    <td className="tnum" style={{ textAlign: 'center' }}>
+                      {c.units_count}
+                    </td>
                     <td>
                       <StatusBadge kind="container" status={c.status} />
                     </td>
