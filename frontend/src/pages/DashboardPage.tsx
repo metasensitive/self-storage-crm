@@ -384,8 +384,8 @@ export default function DashboardPage() {
                   <thead>
                     <tr>
                       <th>Локация</th>
-                      <th>Контейнеры</th>
-                      <th>Кладовки</th>
+                      <th style={{ textAlign: 'center' }}>Контейнеры</th>
+                      <th style={{ textAlign: 'center' }}>Кладовки</th>
                       <th>Заполняемость</th>
                       <th className="num">Доход (мес.)</th>
                     </tr>
@@ -401,8 +401,10 @@ export default function DashboardPage() {
                               <span className="t-small">{l.city}</span>
                             </div>
                           </td>
-                          <td className="tnum">{l.containers_count}</td>
-                          <td className="tnum">
+                          <td className="tnum" style={{ textAlign: 'center' }}>
+                            {l.containers_count}
+                          </td>
+                          <td className="tnum" style={{ textAlign: 'center' }}>
                             <span className="muted">
                               {stats
                                 ? `${stats.occupied_units}/${stats.total_units}`
