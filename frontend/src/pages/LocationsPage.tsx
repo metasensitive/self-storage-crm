@@ -24,7 +24,27 @@ import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtMoney } from '@/lib/format';
+import { fetchAllPages, type CsvColumn } from '@/lib/export';
+import { ExportButton } from '@/components/ExportButton';
 import type { Location, LocationStatus } from '@/api/types';
+
+const LOCATION_STATUS_LABEL: Record<LocationStatus, string> = {
+  active: 'Активна',
+  inactive: 'Неактивна',
+};
+
+const LOCATIONS_CSV_COLUMNS: ReadonlyArray<CsvColumn<Location>> = [
+  { header: 'ID', cell: (l) => l.id },
+  { header: 'Название', cell: (l) => l.name },
+  { header: 'Город', cell: (l) => l.city },
+  { header: 'Адрес', cell: (l) => l.address },
+  { header: 'Широта', cell: (l) => l.latitude ?? '' },
+  { header: 'Долгота', cell: (l) => l.longitude ?? '' },
+  { header: 'Статус', cell: (l) => LOCATION_STATUS_LABEL[l.status] ?? l.status },
+  { header: 'Контейнеры', cell: (l) => l.containers_count },
+  { header: 'Кладовки', cell: (l) => l.units_count },
+  { header: 'Создана', cell: (l) => l.created_at },
+];
 
 const schema = z.object({
   name: z.string().min(2, 'Минимум 2 символа').max(255, 'Максимум 255 символов'),
@@ -113,11 +133,18 @@ export default function LocationsPage() {
       <Topbar
         crumbs={['Локации']}
         actions={
-          isAdmin && (
-            <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
-              Новая локация
-            </Button>
-          )
+          <>
+            <ExportButton<Location>
+              filename="locations"
+              columns={LOCATIONS_CSV_COLUMNS}
+              fetchRows={() => fetchAllPages((page) => locationsApi.list({ page }))}
+            />
+            {isAdmin && (
+              <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
+                Новая локация
+              </Button>
+            )}
+          </>
         }
       />
       <div className="content">

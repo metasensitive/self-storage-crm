@@ -25,6 +25,8 @@ import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtMoney } from '@/lib/format';
+import { fetchAllPages, type CsvColumn } from '@/lib/export';
+import { ExportButton } from '@/components/ExportButton';
 import type { Unit, UnitStatus } from '@/api/types';
 
 const STATUS_OPTIONS: Array<{ value: UnitStatus | 'all'; label: string }> = [
@@ -43,6 +45,19 @@ const STATUS_LABEL: Record<UnitStatus, string> = {
   rented: 'Арендована',
   blocked: 'Заблокирована',
 };
+
+const UNITS_CSV_COLUMNS: ReadonlyArray<CsvColumn<Unit>> = [
+  { header: 'ID', cell: (u) => u.id },
+  { header: 'Номер', cell: (u) => u.number },
+  { header: 'Контейнер', cell: (u) => u.container?.code ?? '' },
+  { header: 'Локация', cell: (u) => u.container?.location?.name ?? '' },
+  { header: 'Город', cell: (u) => u.container?.location?.city ?? '' },
+  { header: 'Размер, м²', cell: (u) => u.size },
+  { header: 'Цена / день', cell: (u) => u.price },
+  { header: 'Статус', cell: (u) => STATUS_LABEL[u.status] ?? u.status },
+  { header: 'Активных аренд', cell: (u) => u.active_rents_count },
+  { header: 'Создана', cell: (u) => u.created_at },
+];
 
 const createSchema = z.object({
   container_id: z
@@ -174,11 +189,30 @@ export default function UnitsPage() {
       <Topbar
         crumbs={['Кладовки']}
         actions={
-          isAdmin && (
-            <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
-              Новая кладовка
-            </Button>
-          )
+          <>
+            <ExportButton<Unit>
+              filename="units"
+              columns={UNITS_CSV_COLUMNS}
+              fetchRows={() =>
+                fetchAllPages((page) =>
+                  unitsApi.list({
+                    page,
+                    ...(statusFilter !== 'all' && mode === 'table'
+                      ? { status: statusFilter }
+                      : {}),
+                    ...(containerFilter !== 'all'
+                      ? { container_id: containerFilter as number }
+                      : {}),
+                  }),
+                )
+              }
+            />
+            {isAdmin && (
+              <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
+                Новая кладовка
+              </Button>
+            )}
+          </>
         }
       />
       <div className="content">

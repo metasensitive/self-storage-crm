@@ -22,7 +22,26 @@ import { queryKeys } from '@/lib/queryKeys';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { copyToClipboard, generateTempPassword } from '@/lib/password';
 import { fmtDate } from '@/lib/format';
+import { fetchAllPages, type CsvColumn } from '@/lib/export';
+import { ExportButton } from '@/components/ExportButton';
 import type { Role, User } from '@/api/types';
+
+const ROLE_LABEL: Record<Role, string> = {
+  admin: 'Администратор',
+  manager: 'Менеджер',
+};
+
+const USERS_CSV_COLUMNS: ReadonlyArray<CsvColumn<User>> = [
+  { header: 'ID', cell: (u) => u.id },
+  { header: 'Имя', cell: (u) => u.name },
+  { header: 'Email', cell: (u) => u.email },
+  { header: 'Роль', cell: (u) => ROLE_LABEL[u.role] ?? u.role },
+  {
+    header: 'Статус',
+    cell: (u) => (isPendingFirstLogin(u) ? 'Ожидает входа' : 'Активен'),
+  },
+  { header: 'Создан', cell: (u) => u.created_at },
+];
 
 /**
  * Эвристика «Ожидает входа»: при создании Laravel выставляет created_at == updated_at.
@@ -99,9 +118,16 @@ export default function UsersPage() {
       <Topbar
         crumbs={['Сотрудники']}
         actions={
-          <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
-            Новый сотрудник
-          </Button>
+          <>
+            <ExportButton<User>
+              filename="users"
+              columns={USERS_CSV_COLUMNS}
+              fetchRows={() => fetchAllPages((page) => usersApi.list({ page }))}
+            />
+            <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>
+              Новый сотрудник
+            </Button>
+          </>
         }
       />
       <div className="content">
