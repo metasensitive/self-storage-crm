@@ -337,6 +337,7 @@ export default function ContainersPage() {
                         <td onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
+                            className="ui-checkbox"
                             checked={sel.isSelected(c.id)}
                             onChange={() => sel.toggle(c.id)}
                             aria-label={`Выделить контейнер ${c.code}`}

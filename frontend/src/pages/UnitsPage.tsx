@@ -462,6 +462,7 @@ export default function UnitsPage() {
                           <td onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
+                              className="ui-checkbox"
                               checked={sel.isSelected(u.id)}
                               onChange={() => sel.toggle(u.id)}
                               aria-label={`Выделить кладовку №${u.number}`}

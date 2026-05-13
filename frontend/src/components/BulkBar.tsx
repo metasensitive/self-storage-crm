@@ -15,6 +15,7 @@ export function CheckboxTri({
   return (
     <input
       type="checkbox"
+      className="ui-checkbox"
       checked={state === 'all'}
       ref={(el) => {
         if (el) el.indeterminate = state === 'some';
