@@ -9,6 +9,7 @@ use App\Http\Controllers\ContainerController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\RentController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\ActivityLogController;
 
 /*
 | API Routes v1
@@ -71,6 +72,9 @@ Route::prefix('v1')->group(function () {
 
             // Пользователи
             Route::apiResource('users', UserController::class);
+
+            // Аудит-лог
+            Route::get('activity-logs', [ActivityLogController::class, 'index']);
 
             // Локации (CRUD)
             Route::post('locations', [LocationController::class, 'store']);
