@@ -200,6 +200,84 @@ class UnitController extends Controller
     }
 
     /**
+     * Массовая смена статуса кладовок.
+     *
+     * Принимает: ids (массив), status. Каждая кладовка обновляется как
+     * через одиночный updateStatus — без проверок на активные аренды
+     * (та же семантика, что и у одиночного эндпоинта).
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Кладовки
+     */
+    public function bulkUpdateStatus(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*' => ['integer', 'distinct', 'exists:units,id'],
+            'status' => ['required', 'string', Rule::in(Unit::getAvailableStatuses())],
+        ]);
+
+        $count = Unit::query()->whereIn('id', $data['ids'])->update(['status' => $data['status']]);
+
+        return response()->json([
+            'message' => "Обновлено: {$count}",
+            'data' => ['updated_count' => $count],
+        ]);
+    }
+
+    /**
+     * Массовое удаление кладовок.
+     *
+     * Кладовки с активной арендой пропускаются и возвращаются в поле
+     * `skipped` — клиент сможет показать конкретно что не удалось.
+     *
+     * Доступ: только администратор.
+     *
+     * @tags Кладовки
+     */
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*' => ['integer', 'distinct', 'exists:units,id'],
+        ]);
+
+        $units = Unit::query()
+            ->whereIn('id', $data['ids'])
+            ->withCount(['rents as active_rents_count' => fn ($q) => $q->where('status', Rent::STATUS_ACTIVE)])
+            ->get();
+
+        $skipped = [];
+        $deletable = [];
+        foreach ($units as $unit) {
+            if ($unit->active_rents_count > 0) {
+                $skipped[] = [
+                    'id' => $unit->id,
+                    'reason' => 'Активная аренда',
+                ];
+            } else {
+                $deletable[] = $unit;
+            }
+        }
+
+        $deletedCount = 0;
+        foreach ($deletable as $unit) {
+            // Удаляем по одному — чтобы события деления и LogsActivity отработали.
+            $unit->delete();
+            $deletedCount++;
+        }
+
+        return response()->json([
+            'message' => "Удалено: {$deletedCount}, пропущено: " . count($skipped),
+            'data' => [
+                'deleted_count' => $deletedCount,
+                'skipped' => $skipped,
+            ],
+        ]);
+    }
+
+    /**
      * Изменение цены кладовки.
      *
      * Принимает: price (число, мин: 0, макс: 99999999.99).
