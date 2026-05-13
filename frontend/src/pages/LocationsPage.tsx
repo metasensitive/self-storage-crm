@@ -21,6 +21,7 @@ import { Ic } from '@/components/Ic';
 import { locationsApi, type LocationPayload } from '@/api/locations';
 import { analyticsApi } from '@/api/analytics';
 import { queryKeys } from '@/lib/queryKeys';
+import { useOpenParam } from '@/lib/useOpenParam';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtMoney } from '@/lib/format';
@@ -108,6 +109,14 @@ export default function LocationsPage() {
     queryKey: drawerLocation ? queryKeys.analytics.location(drawerLocation.id) : ['noop'],
     queryFn: () => analyticsApi.location(drawerLocation!.id),
     enabled: drawerLocation != null,
+  });
+
+  // Deep link: /locations?open={id} — открывает drawer для конкретной локации
+  useOpenParam<Location>({
+    queryKey: queryKeys.locations.detail,
+    fetch: locationsApi.show,
+    onOpen: setDrawerLocation,
+    alreadyOpen: !!drawerLocation,
   });
 
   const invalidate = () => {

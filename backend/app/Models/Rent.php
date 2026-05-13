@@ -2,13 +2,30 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Rent extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
+
+    public function activityLabel(): string
+    {
+        // Lazy-load unit + container, чтобы лейбл нёс полезный контекст:
+        // «Аренда кладовки №5 в C-001» вместо безымянного «Аренда #14».
+        $unit = $this->unit;
+        if ($unit) {
+            $label = "кладовки №{$unit->number}";
+            $container = $unit->container;
+            if ($container && $container->code) {
+                $label .= " ({$container->code})";
+            }
+            return "Аренда {$label}";
+        }
+        return "Аренда #{$this->id}";
+    }
 
     protected $fillable = [
         'unit_id',

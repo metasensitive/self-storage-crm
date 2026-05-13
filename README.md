@@ -36,7 +36,7 @@
 | **Стили**            | Чистый CSS на oklch-токенах, светлая/тёмная темы                     |
 | **Геокодинг**        | Photon (OpenStreetMap) — autocomplete-сервис от Komoot, без API-ключа |
 | **Документация API** | Swagger (Scramble)                                                   |
-| **Тестирование**     | PHPUnit — 10 тестов, 38 assertions                                   |
+| **Тестирование**     | PHPUnit — 19 тестов, 62 assertions                                   |
 
 ---
 
@@ -53,7 +53,9 @@ self-storage-crm/
 │   │   │   ├── Requests/         # FormRequest на каждое мутирующее действие
 │   │   │   └── Resources/        # JsonResource для ответов API
 │   │   ├── Mail/                 # ResetPasswordMail
-│   │   ├── Models/               # User, Location, Container, Unit, Rent
+│   │   ├── Models/               # User, Location, Container, Unit, Rent,
+│   │   │   │                       ActivityLog
+│   │   │   └── Concerns/         # LogsActivity (trait для аудит-лога)
 │   │   └── Services/             # RentService, AnalyticsService
 │   ├── database/
 │   │   ├── factories/, migrations/, seeders/
@@ -75,7 +77,8 @@ self-storage-crm/
         ├── pages/                # все экраны
         ├── lib/                  # format, queryClient, queryKeys,
         │                           applyApiErrors, password, geocoding,
-        │                           userAgent, accounts, enrich
+        │                           userAgent, accounts, enrich,
+        │                           useOpenParam (deep-link к объектам)
         └── styles/               # global.css, landing.css
 ```
 
@@ -148,6 +151,7 @@ npm run dev
 - **Аренды** — список с фильтрами, drawer с прогресс-баром периода, модалка создания с live-расчётом цены и валидацией ≥10 дней, действие «Завершить»
 - **Аналитика** — сетевые KPI, donut статусов, чарт дохода с переключателем 7/30/90 дней (hover-tooltip, тренд vs предыдущего периода), рейтинг локаций
 - **Сотрудники** (admin) — CRUD с генерацией временного пароля и копированием учётных данных
+- **Журнал действий** (admin) — автоматический аудит-лог всех CRUD по локациям/контейнерам/кладовкам/арендам/сотрудникам через trait `LogsActivity` на eloquent events. Карточный фид с фильтрами по типу объекта и действию, кликабельные ссылки на конкретный объект (deep-link `?open={id}` открывает drawer на нужной странице), разворачиваемый цветной diff `old → new` с переводом полей и enum-значений. Чувствительные поля (`password`, `remember_token`) и шум (`id`, `email_verified_at`, FK-id) в diff не попадают. Polling каждые 15 сек для live-обновления.
 - **Профиль** — данные, смена пароля (с автологином), управление аватаром, активные сессии
 
 ### Лендинг
@@ -182,6 +186,7 @@ http://localhost:8000/docs/api
 | **Кладовки**        | `/api/v1/units/*`       | Чтение: админ + менеджер · Запись: админ        |
 | **Аренды**          | `/api/v1/rents/*`       | Админ + менеджер                                |
 | **Аналитика**       | `/api/v1/analytics/*`   | Админ + менеджер                                |
+| **Аудит-лог**       | `/api/v1/activity-logs` | Только админ                                    |
 
 ---
 
@@ -195,7 +200,7 @@ http://localhost:8000/docs/api
 | `/dashboard`                                      | Все авторизованные                                        |
 | `/locations`, `/containers`, `/units`, `/rents`   | Все авторизованные                                        |
 | `/analytics`, `/profile`                          | Все авторизованные                                        |
-| `/users`                                          | Только администратор                                      |
+| `/users`, `/activity-log`                         | Только администратор                                      |
 
 ---
 
@@ -206,13 +211,14 @@ cd backend
 php artisan test --testsuite=Feature
 ```
 
-**Результат:** ✅ 10 passed, 38 assertions.
+**Результат:** ✅ 19 passed, 62 assertions.
 
 Покрытие:
 - Аутентификация (login, forgot-password, reset-password)
 - Проверка прав доступа (admin vs manager)
 - Бизнес-логика аренды (минимум 10 дней, перекрытия, расчёт цены)
 - Аналитика (расчёт сетевой статистики)
+- Аудит-лог (запись created/updated/deleted, фильтр по типу объекта, корректный diff без чувствительных полей)
 
 ---
 

@@ -22,6 +22,7 @@ import { unitsApi, type CreateUnitPayload, type UpdateUnitPayload } from '@/api/
 import { containersApi } from '@/api/containers';
 import { rentsApi } from '@/api/rents';
 import { queryKeys } from '@/lib/queryKeys';
+import { useOpenParam } from '@/lib/useOpenParam';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtMoney } from '@/lib/format';
@@ -138,6 +139,14 @@ export default function UnitsPage() {
       : ['noop'],
     queryFn: () => rentsApi.list({ unit_id: drawerUnit!.id }),
     enabled: drawerUnit != null,
+  });
+
+  // Deep link: /units?open={id}
+  useOpenParam<Unit>({
+    queryKey: queryKeys.units.detail,
+    fetch: unitsApi.show,
+    onOpen: setDrawerUnit,
+    alreadyOpen: !!drawerUnit,
   });
 
   const invalidate = () => {

@@ -21,6 +21,7 @@ import { rentsApi } from '@/api/rents';
 import { unitsApi } from '@/api/units';
 import { locationsApi } from '@/api/locations';
 import { queryKeys } from '@/lib/queryKeys';
+import { useOpenParam } from '@/lib/useOpenParam';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { fmtDate, fmtMoney, pluralize } from '@/lib/format';
 import { fetchAllPages, type CsvColumn } from '@/lib/export';
@@ -107,6 +108,14 @@ export default function RentsPage() {
 
   const items = useMemo(() => listQ.data?.data ?? [], [listQ.data]);
   const meta = listQ.data?.meta;
+
+  // Deep link: /rents?open={id}
+  useOpenParam<Rent>({
+    queryKey: queryKeys.rents.detail,
+    fetch: rentsApi.show,
+    onOpen: setDrawerRent,
+    alreadyOpen: !!drawerRent,
+  });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.rents.all });

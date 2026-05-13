@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Unit extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
+
+    public function activityLabel(): string
+    {
+        $base = $this->number ? "Кладовка №{$this->number}" : "Кладовка #{$this->id}";
+        $container = $this->container;
+        if ($container && $container->code) {
+            return "{$base} в {$container->code}";
+        }
+        return $base;
+    }
 
     protected $fillable = [
         'container_id',

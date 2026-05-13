@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
   { to: '/rents', label: 'Аренды', icon: 'receipt', roles: ['admin', 'manager'] },
   { to: '/analytics', label: 'Аналитика', icon: 'chart', roles: ['admin', 'manager'] },
   { to: '/users', label: 'Сотрудники', icon: 'user', roles: ['admin'] },
+  { to: '/activity-log', label: 'Журнал', icon: 'clock', roles: ['admin'] },
 ];
 
 export function Sidebar() {

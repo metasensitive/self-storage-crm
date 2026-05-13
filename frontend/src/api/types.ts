@@ -118,6 +118,33 @@ export interface ContainerAnalytics extends NetworkAnalytics {
   };
 }
 
+// ============ Аудит-лог ============
+export type ActivitySubjectType = 'Location' | 'Container' | 'Unit' | 'Rent' | 'User';
+export type ActivityAction = 'created' | 'updated' | 'deleted';
+
+export interface ActivityLogUser {
+  id: number;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+}
+
+export interface ActivityLog {
+  id: number;
+  action: ActivityAction;
+  subject_type: ActivitySubjectType;
+  subject_id: number;
+  subject_label: string | null;
+  changes: {
+    old?: Record<string, unknown>;
+    new?: Record<string, unknown>;
+  } | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  user: ActivityLogUser | null;
+}
+
 // ============ Обёртки ответа Laravel ============
 export interface ResourceItem<T> {
   data: T;

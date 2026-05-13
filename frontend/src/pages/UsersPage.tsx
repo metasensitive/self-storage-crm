@@ -19,6 +19,7 @@ import { Ic } from '@/components/Ic';
 import { useAuth } from '@/contexts/AuthContext';
 import { usersApi, type CreateUserPayload, type UpdateUserPayload } from '@/api/users';
 import { queryKeys } from '@/lib/queryKeys';
+import { useOpenParam } from '@/lib/useOpenParam';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { copyToClipboard, generateTempPassword } from '@/lib/password';
 import { fmtDate } from '@/lib/format';
@@ -98,6 +99,14 @@ export default function UsersPage() {
 
   const items = listQ.data?.data ?? [];
   const meta = listQ.data?.meta;
+
+  // Deep link: /users?open={id} — открывает модалку редактирования.
+  useOpenParam<User>({
+    queryKey: queryKeys.users.detail,
+    fetch: usersApi.show,
+    onOpen: setEditing,
+    alreadyOpen: !!editing,
+  });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
