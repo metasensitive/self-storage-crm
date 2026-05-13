@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/Select';
 import { Ic } from '@/components/Ic';
 import { activityLogsApi } from '@/api/activityLogs';
 import { queryKeys } from '@/lib/queryKeys';
-import { fmtDate } from '@/lib/format';
+import { fmtDate, fmtDateTime } from '@/lib/format';
 import type { ActivityAction, ActivityLog, ActivitySubjectType } from '@/api/types';
 
 /** Именительный падеж — используется в фильтре «тип объекта». */
@@ -295,7 +295,7 @@ function LogRow({ log }: { log: ActivityLog }) {
             <SubjectLink log={log} />
           </div>
           <div className="t-small dim mt-1 row gap-3" style={{ flexWrap: 'wrap' }}>
-            <span>{fmtDate(log.created_at)}</span>
+            <span>{fmtDateTime(log.created_at)}</span>
             {log.ip_address && (
               <span className="mono" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {log.ip_address}
