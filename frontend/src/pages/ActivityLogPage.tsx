@@ -323,6 +323,7 @@ function ChangesDiff({ log }: { log: ActivityLog }) {
         // иначе «Статус» и значение разлетаются по краям.
         gridTemplateColumns: 'max-content auto',
         justifyContent: 'start',
+        alignItems: 'center',
         rowGap: 8,
         columnGap: 16,
       }}
@@ -364,10 +365,8 @@ function DiffRow({
 
   return (
     <>
-      <span className="t-small dim" style={{ alignSelf: 'baseline' }}>
-        {label}
-      </span>
-      <div className="row" style={{ gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <span className="t-body dim">{label}</span>
+      <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         {action === 'updated' ? (
           <>
             <span className="t-body" style={{ color: 'var(--st-blocked, #b91c1c)' }}>
