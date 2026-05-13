@@ -13,6 +13,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { fmtDate } from '@/lib/format';
 import type { ActivityAction, ActivityLog, ActivitySubjectType } from '@/api/types';
 
+/** Именительный падеж — используется в фильтре «тип объекта». */
 const SUBJECT_LABEL: Record<ActivitySubjectType, string> = {
   Location: 'Локация',
   Container: 'Контейнер',
@@ -21,16 +22,91 @@ const SUBJECT_LABEL: Record<ActivitySubjectType, string> = {
   User: 'Сотрудник',
 };
 
-const ACTION_LABEL: Record<ActivityAction, string> = {
-  created: 'создан',
-  updated: 'изменён',
-  deleted: 'удалён',
+/** Винительный падеж — используется в строке журнала: «изменил кладовку», «удалил аренду». */
+const SUBJECT_LABEL_ACC: Record<ActivitySubjectType, string> = {
+  Location: 'локацию',
+  Container: 'контейнер',
+  Unit: 'кладовку',
+  Rent: 'аренду',
+  User: 'сотрудника',
+};
+
+/** Активный глагол в прош. вр. — для строки журнала: «Admin создал …». */
+const ACTION_VERB: Record<ActivityAction, string> = {
+  created: 'создал',
+  updated: 'изменил',
+  deleted: 'удалил',
+};
+
+/** Капитализированная форма для дропдауна фильтра. */
+const ACTION_FILTER_LABEL: Record<ActivityAction, string> = {
+  created: 'Создан',
+  updated: 'Изменён',
+  deleted: 'Удалён',
 };
 
 const ACTION_COLOR: Record<ActivityAction, string> = {
   created: 'var(--st-rented, #2563eb)',
   updated: 'var(--st-reserved, #b45309)',
   deleted: 'var(--st-blocked, #b91c1c)',
+};
+
+/** Универсальные имена полей (работает для всех типов объектов). */
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Название',
+  email: 'Email',
+  city: 'Город',
+  address: 'Адрес',
+  latitude: 'Широта',
+  longitude: 'Долгота',
+  status: 'Статус',
+  role: 'Роль',
+  price: 'Цена',
+  size: 'Размер',
+  number: 'Номер',
+  code: 'Код',
+  date_from: 'Дата начала',
+  date_to: 'Дата окончания',
+  units_count: 'Кол-во кладовок',
+  installed_at: 'Установлен',
+  location_id: 'Локация',
+  container_id: 'Контейнер',
+  unit_id: 'Кладовка',
+  avatar: 'Аватар',
+};
+
+/** Перевод enum-значений по `(subject_type, field)`. */
+const VALUE_LABELS: Partial<
+  Record<ActivitySubjectType, Record<string, Record<string, string>>>
+> = {
+  Location: {
+    status: { active: 'Активна', inactive: 'Неактивна' },
+  },
+  Container: {
+    status: {
+      active: 'Активен',
+      inactive: 'Неактивен',
+      maintenance: 'На обслуживании',
+    },
+  },
+  Unit: {
+    status: {
+      free: 'Свободна',
+      reserved: 'Зарезервирована',
+      rented: 'Арендована',
+      blocked: 'Заблокирована',
+    },
+  },
+  Rent: {
+    status: {
+      active: 'Активна',
+      finished: 'Завершена',
+      cancelled: 'Отменена',
+    },
+  },
+  User: {
+    role: { admin: 'Администратор', manager: 'Менеджер' },
+  },
 };
 
 export default function ActivityLogPage() {
@@ -94,9 +170,9 @@ export default function ActivityLogPage() {
             style={{ width: 220 }}
           >
             <option value="all">Все действия</option>
-            {(Object.keys(ACTION_LABEL) as ActivityAction[]).map((k) => (
+            {(Object.keys(ACTION_FILTER_LABEL) as ActivityAction[]).map((k) => (
               <option key={k} value={k}>
-                {ACTION_LABEL[k]}
+                {ACTION_FILTER_LABEL[k]}
               </option>
             ))}
           </Select>
@@ -185,8 +261,8 @@ function LogRow({ log }: { log: ActivityLog }) {
         <div className="col grow" style={{ minWidth: 0 }}>
           <div className="t-body">
             <strong>{log.user?.name ?? 'Система'}</strong>{' '}
-            <span style={{ color: ACTION_COLOR[log.action] }}>{ACTION_LABEL[log.action]}</span>{' '}
-            <span className="muted">{SUBJECT_LABEL[log.subject_type]?.toLowerCase()}</span>{' '}
+            <span style={{ color: ACTION_COLOR[log.action] }}>{ACTION_VERB[log.action]}</span>{' '}
+            <span className="muted">{SUBJECT_LABEL_ACC[log.subject_type]}</span>{' '}
             <strong>{log.subject_label ?? `#${log.subject_id}`}</strong>
           </div>
           <div className="t-small dim mt-1 row gap-3" style={{ flexWrap: 'wrap' }}>
@@ -212,18 +288,12 @@ function LogRow({ log }: { log: ActivityLog }) {
 
       {expanded && hasChanges && (
         <div
-          className="mt-3"
           style={{
             marginTop: 12,
-            padding: 12,
+            padding: '10px 14px',
             background: 'var(--bg)',
             border: '1px solid var(--line)',
             borderRadius: 'var(--r-md)',
-            fontFamily: 'monospace',
-            fontSize: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
           }}
         >
           <ChangesDiff log={log} />
@@ -241,41 +311,90 @@ function ChangesDiff({ log }: { log: ActivityLog }) {
   ]);
 
   if (keys.size === 0) {
-    return <span className="dim">Без изменений</span>;
+    return <span className="t-small dim">Без изменений</span>;
   }
 
   return (
-    <>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 160px) 1fr', rowGap: 8, columnGap: 12 }}>
       {[...keys].map((key) => {
         const oldV = oldVals?.[key];
         const newV = newVals?.[key];
         return (
-          <div key={key} className="row" style={{ gap: 8, alignItems: 'baseline' }}>
-            <span className="dim" style={{ minWidth: 140 }}>
-              {key}
-            </span>
-            {log.action === 'updated' ? (
-              <>
-                <span style={{ color: 'var(--st-blocked, #b91c1c)' }}>{formatValue(oldV)}</span>
-                <Ic name="chev_r" size={12} />
-                <span style={{ color: 'var(--st-rented, #2563eb)' }}>{formatValue(newV)}</span>
-              </>
-            ) : log.action === 'deleted' ? (
-              <span style={{ color: 'var(--st-blocked, #b91c1c)' }}>{formatValue(oldV)}</span>
-            ) : (
-              <span>{formatValue(newV)}</span>
-            )}
-          </div>
+          <DiffRow
+            key={key}
+            subjectType={log.subject_type}
+            action={log.action}
+            fieldKey={key}
+            oldValue={oldV}
+            newValue={newV}
+          />
         );
       })}
+    </div>
+  );
+}
+
+function DiffRow({
+  subjectType,
+  action,
+  fieldKey,
+  oldValue,
+  newValue,
+}: {
+  subjectType: ActivityLog['subject_type'];
+  action: ActivityLog['action'];
+  fieldKey: string;
+  oldValue: unknown;
+  newValue: unknown;
+}) {
+  const label = FIELD_LABELS[fieldKey] ?? fieldKey;
+  const oldText = formatValue(subjectType, fieldKey, oldValue);
+  const newText = formatValue(subjectType, fieldKey, newValue);
+
+  return (
+    <>
+      <span className="t-small dim" style={{ alignSelf: 'baseline' }}>
+        {label}
+      </span>
+      <div className="row" style={{ gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+        {action === 'updated' ? (
+          <>
+            <span className="t-body" style={{ color: 'var(--st-blocked, #b91c1c)' }}>
+              {oldText}
+            </span>
+            <Ic name="arrow_r" size={12} />
+            <span className="t-body" style={{ color: 'var(--st-rented, #2563eb)' }}>
+              {newText}
+            </span>
+          </>
+        ) : action === 'deleted' ? (
+          <span className="t-body" style={{ color: 'var(--st-blocked, #b91c1c)' }}>
+            {oldText}
+          </span>
+        ) : (
+          <span className="t-body">{newText}</span>
+        )}
+      </div>
     </>
   );
 }
 
-function formatValue(v: unknown): string {
-  if (v === null || v === undefined) return '—';
+function formatValue(subjectType: ActivityLog['subject_type'], key: string, v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+
+  // Перевод enum-значений (status, role и т.п.)
+  if (typeof v === 'string') {
+    const mapped = VALUE_LABELS[subjectType]?.[key]?.[v];
+    if (mapped) return mapped;
+  }
+
   if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (typeof v === 'number') {
+    // Округлим длинные дробные (координаты, цены)
+    if (!Number.isInteger(v)) return v.toFixed(5).replace(/\.?0+$/, '');
+    return String(v);
+  }
+  if (typeof v === 'boolean') return v ? 'да' : 'нет';
   try {
     return JSON.stringify(v);
   } catch {
