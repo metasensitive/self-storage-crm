@@ -52,7 +52,22 @@ const ACTION_COLOR: Record<ActivityAction, string> = {
   deleted: 'var(--st-blocked, #b91c1c)',
 };
 
-/** Универсальные имена полей (работает для всех типов объектов). */
+/**
+ * Поля, которые скрываем в diff: служебные (id, timestamps), бесполезные
+ * для оператора (пути файлов аватара, флаги верификации email — мы их не
+ * используем) и FK-id'ы (показывали бы числовой id без человекочитаемого
+ * контекста — соседний клик по subject_label и так ведёт к нужному объекту).
+ */
+const HIDDEN_FIELDS = new Set<string>([
+  'id',
+  'email_verified_at',
+  'avatar',
+  'location_id',
+  'container_id',
+  'unit_id',
+]);
+
+/** Имена полей, общие для нескольких сущностей. */
 const FIELD_LABELS: Record<string, string> = {
   name: 'Название',
   email: 'Email',
@@ -70,11 +85,17 @@ const FIELD_LABELS: Record<string, string> = {
   date_to: 'Дата окончания',
   units_count: 'Кол-во кладовок',
   installed_at: 'Установлен',
-  location_id: 'Локация',
-  container_id: 'Контейнер',
-  unit_id: 'Кладовка',
-  avatar: 'Аватар',
 };
+
+/** Переопределение имени поля для конкретного типа объекта. */
+const SUBJECT_FIELD_LABELS: Partial<Record<ActivitySubjectType, Record<string, string>>> = {
+  User: {
+    name: 'Имя',
+  },
+};
+
+/** Поля-даты: рендерим через fmtDate, а не как сырую ISO-строку. */
+const DATE_FIELDS = new Set<string>(['date_from', 'date_to', 'installed_at']);
 
 /** Перевод enum-значений по `(subject_type, field)`. */
 const VALUE_LABELS: Partial<
@@ -334,22 +355,33 @@ function SubjectLink({ log }: { log: ActivityLog }) {
 
 function ChangesDiff({ log }: { log: ActivityLog }) {
   const { old: oldVals, new: newVals } = log.changes ?? {};
-  const keys = new Set<string>([
+  const allKeys = new Set<string>([
     ...Object.keys(oldVals ?? {}),
     ...Object.keys(newVals ?? {}),
   ]);
 
-  if (keys.size === 0) {
-    return <span className="t-small dim">Без изменений</span>;
+  const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
+
+  // Оставляем только поля, которые имеют смысл показать оператору.
+  const visibleKeys = [...allKeys].filter((key) => {
+    if (HIDDEN_FIELDS.has(key)) return false;
+    const oldV = oldVals?.[key];
+    const newV = newVals?.[key];
+    // Для создания/удаления интересен только тот «бок», который есть.
+    if (log.action === 'created') return !isEmpty(newV);
+    if (log.action === 'deleted') return !isEmpty(oldV);
+    // updated — хотя бы один из значений непустой.
+    return !isEmpty(oldV) || !isEmpty(newV);
+  });
+
+  if (visibleKeys.length === 0) {
+    return <span className="t-small dim">Без значимых изменений</span>;
   }
 
   return (
     <div
       style={{
         display: 'grid',
-        // Колонки автоматически по содержимому: лейбл — ровно нужной ширины,
-        // значение — сразу рядом. Не растягиваем на всю ширину карточки,
-        // иначе «Статус» и значение разлетаются по краям.
         gridTemplateColumns: 'max-content auto',
         justifyContent: 'start',
         alignItems: 'center',
@@ -357,20 +389,16 @@ function ChangesDiff({ log }: { log: ActivityLog }) {
         columnGap: 16,
       }}
     >
-      {[...keys].map((key) => {
-        const oldV = oldVals?.[key];
-        const newV = newVals?.[key];
-        return (
-          <DiffRow
-            key={key}
-            subjectType={log.subject_type}
-            action={log.action}
-            fieldKey={key}
-            oldValue={oldV}
-            newValue={newV}
-          />
-        );
-      })}
+      {visibleKeys.map((key) => (
+        <DiffRow
+          key={key}
+          subjectType={log.subject_type}
+          action={log.action}
+          fieldKey={key}
+          oldValue={oldVals?.[key]}
+          newValue={newVals?.[key]}
+        />
+      ))}
     </div>
   );
 }
@@ -388,7 +416,8 @@ function DiffRow({
   oldValue: unknown;
   newValue: unknown;
 }) {
-  const label = FIELD_LABELS[fieldKey] ?? fieldKey;
+  const label =
+    SUBJECT_FIELD_LABELS[subjectType]?.[fieldKey] ?? FIELD_LABELS[fieldKey] ?? fieldKey;
   const oldText = formatValue(subjectType, fieldKey, oldValue);
   const newText = formatValue(subjectType, fieldKey, newValue);
 
@@ -427,9 +456,13 @@ function formatValue(subjectType: ActivityLog['subject_type'], key: string, v: u
     if (mapped) return mapped;
   }
 
+  // Даты — через fmtDate, а не как сырая ISO-строка.
+  if (DATE_FIELDS.has(key) && typeof v === 'string') {
+    return fmtDate(v);
+  }
+
   if (typeof v === 'string') return v;
   if (typeof v === 'number') {
-    // Округлим длинные дробные (координаты, цены)
     if (!Number.isInteger(v)) return v.toFixed(5).replace(/\.?0+$/, '');
     return String(v);
   }
