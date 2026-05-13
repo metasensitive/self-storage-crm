@@ -315,7 +315,18 @@ function ChangesDiff({ log }: { log: ActivityLog }) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 160px) 1fr', rowGap: 8, columnGap: 12 }}>
+    <div
+      style={{
+        display: 'grid',
+        // Колонки автоматически по содержимому: лейбл — ровно нужной ширины,
+        // значение — сразу рядом. Не растягиваем на всю ширину карточки,
+        // иначе «Статус» и значение разлетаются по краям.
+        gridTemplateColumns: 'max-content auto',
+        justifyContent: 'start',
+        rowGap: 8,
+        columnGap: 16,
+      }}
+    >
       {[...keys].map((key) => {
         const oldV = oldVals?.[key];
         const newV = newVals?.[key];
