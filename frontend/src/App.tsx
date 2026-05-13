@@ -18,6 +18,7 @@ import UnitsPage from './pages/UnitsPage';
 import RentsPage from './pages/RentsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import UsersPage from './pages/UsersPage';
+import ActivityLogPage from './pages/ActivityLogPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -53,6 +54,7 @@ export default function App() {
 
               <Route element={<RoleGuard allow={['admin']} />}>
                 <Route path="/users" element={<UsersPage />} />
+                <Route path="/activity-log" element={<ActivityLogPage />} />
               </Route>
 
               <Route path="/app" element={<Navigate to="/dashboard" replace />} />

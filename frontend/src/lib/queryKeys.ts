@@ -47,4 +47,10 @@ export const queryKeys = {
       [...queryKeys.rents.all, 'list', params] as const,
     detail: (id: number) => [...queryKeys.rents.all, 'detail', id] as const,
   },
+
+  activityLogs: {
+    all: ['activity-logs'] as const,
+    list: (params: Record<string, unknown> = {}) =>
+      [...queryKeys.activityLogs.all, 'list', params] as const,
+  },
 };
