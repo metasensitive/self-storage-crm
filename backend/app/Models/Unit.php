@@ -14,7 +14,12 @@ class Unit extends Model
 
     public function activityLabel(): string
     {
-        return $this->number ? "№{$this->number}" : (string) $this->id;
+        $base = $this->number ? "Кладовка №{$this->number}" : "Кладовка #{$this->id}";
+        $container = $this->container;
+        if ($container && $container->code) {
+            return "{$base} в {$container->code}";
+        }
+        return $base;
     }
 
     protected $fillable = [

@@ -13,6 +13,17 @@ class Rent extends Model
 
     public function activityLabel(): string
     {
+        // Lazy-load unit + container, чтобы лейбл нёс полезный контекст:
+        // «Аренда кладовки №5 в C-001» вместо безымянного «Аренда #14».
+        $unit = $this->unit;
+        if ($unit) {
+            $label = "кладовки №{$unit->number}";
+            $container = $unit->container;
+            if ($container && $container->code) {
+                $label .= " ({$container->code})";
+            }
+            return "Аренда {$label}";
+        }
         return "Аренда #{$this->id}";
     }
 

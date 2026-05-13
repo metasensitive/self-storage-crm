@@ -19,6 +19,7 @@ import { Ic } from '@/components/Ic';
 import { containersApi, type ContainerPayload } from '@/api/containers';
 import { locationsApi } from '@/api/locations';
 import { queryKeys } from '@/lib/queryKeys';
+import { useOpenParam } from '@/lib/useOpenParam';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtDateShort } from '@/lib/format';
@@ -112,6 +113,14 @@ export default function ContainersPage() {
     if (!q) return items;
     return items.filter((c) => c.code.toLowerCase().includes(q));
   }, [items, search]);
+
+  // Deep link: /containers?open={id}
+  useOpenParam<Container>({
+    queryKey: queryKeys.containers.detail,
+    fetch: containersApi.show,
+    onOpen: setDrawerContainer,
+    alreadyOpen: !!drawerContainer,
+  });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.containers.all });

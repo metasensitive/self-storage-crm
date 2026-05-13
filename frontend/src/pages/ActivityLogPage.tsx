@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Topbar } from '@/components/Topbar';
 import { Avatar } from '@/components/ui/Avatar';
@@ -126,6 +127,13 @@ export default function ActivityLogPage() {
   const q = useQuery({
     queryKey: queryKeys.activityLogs.list(params),
     queryFn: () => activityLogsApi.list(params),
+    // Реальное время для журнала: всегда считать stale, рефетчить при
+    // возвращении фокуса/маунте, плюс пуллинг каждые 15 секунд пока страница
+    // открыта. Полноценный websocket-апдейт — задача 4.1 (Reverb).
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000,
   });
 
   const items = q.data?.data ?? [];
@@ -263,7 +271,7 @@ function LogRow({ log }: { log: ActivityLog }) {
             <strong>{log.user?.name ?? 'Система'}</strong>{' '}
             <span style={{ color: ACTION_COLOR[log.action] }}>{ACTION_VERB[log.action]}</span>{' '}
             <span className="muted">{SUBJECT_LABEL_ACC[log.subject_type]}</span>{' '}
-            <strong>{log.subject_label ?? `#${log.subject_id}`}</strong>
+            <SubjectLink log={log} />
           </div>
           <div className="t-small dim mt-1 row gap-3" style={{ flexWrap: 'wrap' }}>
             <span>{fmtDate(log.created_at)}</span>
@@ -300,6 +308,27 @@ function LogRow({ log }: { log: ActivityLog }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Маршруты deep-link для каждого типа объекта. */
+const SUBJECT_ROUTE: Record<ActivitySubjectType, string> = {
+  Location: '/locations',
+  Container: '/containers',
+  Unit: '/units',
+  Rent: '/rents',
+  User: '/users',
+};
+
+function SubjectLink({ log }: { log: ActivityLog }) {
+  const text = <strong>{log.subject_label ?? `#${log.subject_id}`}</strong>;
+  // Для удалённого объекта ссылка бесполезна — он отсутствует в БД.
+  if (log.action === 'deleted') return text;
+  const href = `${SUBJECT_ROUTE[log.subject_type]}?open=${log.subject_id}`;
+  return (
+    <Link to={href} style={{ color: 'inherit', textDecoration: 'underline' }}>
+      {text}
+    </Link>
   );
 }
 
