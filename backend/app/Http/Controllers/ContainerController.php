@@ -201,4 +201,80 @@ class ContainerController extends Controller
             'data' => new ContainerResource($container),
         ], 200);
     }
+
+    /**
+     * Массовая смена статуса контейнеров.
+     *
+     * @tags Контейнеры
+     */
+    public function bulkUpdateStatus(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*' => ['integer', 'distinct', 'exists:containers,id'],
+            'status' => ['required', 'string', Rule::in(Container::getAvailableStatuses())],
+        ]);
+
+        // Per-model update — чтобы сработали события и trait LogsActivity
+        // записал каждую смену статуса в аудит-лог.
+        $count = 0;
+        Container::query()->whereIn('id', $data['ids'])->get()->each(function (Container $c) use ($data, &$count) {
+            if ($c->status !== $data['status']) {
+                $c->update(['status' => $data['status']]);
+                $count++;
+            }
+        });
+
+        return response()->json([
+            'message' => "Обновлено: {$count}",
+            'data' => ['updated_count' => $count],
+        ]);
+    }
+
+    /**
+     * Массовое удаление контейнеров.
+     *
+     * Контейнеры с кладовками пропускаются и возвращаются в `skipped`.
+     *
+     * @tags Контейнеры
+     */
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*' => ['integer', 'distinct', 'exists:containers,id'],
+        ]);
+
+        $containers = Container::query()
+            ->whereIn('id', $data['ids'])
+            ->withCount('units')
+            ->get();
+
+        $skipped = [];
+        $deletable = [];
+        foreach ($containers as $container) {
+            if ($container->units_count > 0) {
+                $skipped[] = [
+                    'id' => $container->id,
+                    'reason' => 'В контейнере есть кладовки',
+                ];
+            } else {
+                $deletable[] = $container;
+            }
+        }
+
+        $deletedCount = 0;
+        foreach ($deletable as $container) {
+            $container->delete();
+            $deletedCount++;
+        }
+
+        return response()->json([
+            'message' => "Удалено: {$deletedCount}, пропущено: " . count($skipped),
+            'data' => [
+                'deleted_count' => $deletedCount,
+                'skipped' => $skipped,
+            ],
+        ]);
+    }
 }

@@ -23,6 +23,8 @@ import { containersApi } from '@/api/containers';
 import { rentsApi } from '@/api/rents';
 import { queryKeys } from '@/lib/queryKeys';
 import { useOpenParam } from '@/lib/useOpenParam';
+import { useSelection } from '@/lib/useSelection';
+import { BulkBar, CheckboxTri } from '@/components/BulkBar';
 import { applyApiErrors } from '@/lib/applyApiErrors';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtDate, fmtMoney } from '@/lib/format';
@@ -100,6 +102,10 @@ export default function UnitsPage() {
   const [creating, setCreating] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<Unit | null>(null);
   const [editingPrice, setEditingPrice] = useState<Unit | null>(null);
+  const [bulkStatusModal, setBulkStatusModal] = useState(false);
+  const [bulkStatusValue, setBulkStatusValue] = useState<UnitStatus>('free');
+  const [bulkDeleteModal, setBulkDeleteModal] = useState(false);
+  const sel = useSelection();
 
   const containersListQ = useQuery({
     queryKey: queryKeys.containers.list({ all: true }),
@@ -187,6 +193,34 @@ export default function UnitsPage() {
       invalidate();
     },
     onError: (err) => toastError(err, 'Не удалось изменить цену'),
+  });
+
+  const bulkStatusMut = useMutation({
+    mutationFn: ({ ids, status }: { ids: number[]; status: UnitStatus }) =>
+      unitsApi.bulkUpdateStatus(ids, status),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      sel.clear();
+      setBulkStatusModal(false);
+      invalidate();
+    },
+    onError: (err) => toastError(err, 'Не удалось сменить статус'),
+  });
+
+  const bulkDeleteMut = useMutation({
+    mutationFn: (ids: number[]) => unitsApi.bulkRemove(ids),
+    onSuccess: (res) => {
+      const skipped = res.data.skipped.length;
+      if (skipped > 0) {
+        toast.success(`Удалено: ${res.data.deleted_count}. Пропущено: ${skipped}`);
+      } else {
+        toast.success(res.message);
+      }
+      sel.clear();
+      setBulkDeleteModal(false);
+      invalidate();
+    },
+    onError: (err) => toastError(err, 'Не удалось удалить'),
   });
 
   const containerOptions = containersListQ.data?.data ?? [];
@@ -369,53 +403,101 @@ export default function UnitsPage() {
             </div>
           </div>
         ) : (
-          <div className="card">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>№</th>
-                  <th>Контейнер</th>
-                  <th>Локация</th>
-                  <th className="num">Размер</th>
-                  <th className="num">Цена</th>
-                  <th>Статус</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((u) => {
-                  const loc = u.container?.location;
-                  const code = u.container?.code;
-                  return (
-                    <tr key={u.id} onClick={() => setDrawerUnit(u)}>
-                      <td className="mono">#{u.number}</td>
-                      <td>
-                        <span className="mono">{code ?? '—'}</span>
-                      </td>
-                      <td>
-                        {loc ? (
-                          <div className="col">
-                            <span style={{ fontWeight: 500 }}>{loc.name}</span>
-                            <span className="t-small">{loc.city}</span>
-                          </div>
-                        ) : (
-                          <span className="dim">—</span>
+          <>
+            {isAdmin && (
+              <BulkBar
+                count={sel.count}
+                noun={['кладовка', 'кладовки', 'кладовок']}
+                onClear={sel.clear}
+                actions={
+                  <>
+                    <Button
+                      size="sm"
+                      icon="edit"
+                      onClick={() => setBulkStatusModal(true)}
+                    >
+                      Изменить статус
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon="trash"
+                      onClick={() => setBulkDeleteModal(true)}
+                    >
+                      Удалить
+                    </Button>
+                  </>
+                }
+              />
+            )}
+            <div className="card">
+              <table className="table">
+                <thead>
+                  <tr>
+                    {isAdmin && (
+                      <th style={{ width: 40 }}>
+                        <CheckboxTri
+                          state={sel.pageState(filtered.map((u) => u.id))}
+                          onChange={() => sel.togglePage(filtered.map((u) => u.id))}
+                          ariaLabel="Выделить страницу"
+                        />
+                      </th>
+                    )}
+                    <th>№</th>
+                    <th>Контейнер</th>
+                    <th>Локация</th>
+                    <th className="num">Размер</th>
+                    <th className="num">Цена</th>
+                    <th>Статус</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((u) => {
+                    const loc = u.container?.location;
+                    const code = u.container?.code;
+                    return (
+                      <tr key={u.id} onClick={() => setDrawerUnit(u)}>
+                        {isAdmin && (
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              className="ui-checkbox"
+                              checked={sel.isSelected(u.id)}
+                              onChange={() => sel.toggle(u.id)}
+                              aria-label={`Выделить кладовку №${u.number}`}
+                            />
+                          </td>
                         )}
-                      </td>
-                      <td className="num tnum">{u.size} м²</td>
-                      <td className="num tnum">{fmtMoney(u.price)}</td>
-                      <td>
-                        <StatusBadge kind="unit" status={u.status} />
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <IconButton icon="chev_r" label="Открыть" onClick={() => setDrawerUnit(u)} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td className="mono">#{u.number}</td>
+                        <td>
+                          <span className="mono">{code ?? '—'}</span>
+                        </td>
+                        <td>
+                          {loc ? (
+                            <div className="col">
+                              <span style={{ fontWeight: 500 }}>{loc.name}</span>
+                              <span className="t-small">{loc.city}</span>
+                            </div>
+                          ) : (
+                            <span className="dim">—</span>
+                          )}
+                        </td>
+                        <td className="num tnum">{u.size} м²</td>
+                        <td className="num tnum">{fmtMoney(u.price)}</td>
+                        <td>
+                          <StatusBadge kind="unit" status={u.status} />
+                        </td>
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <IconButton icon="chev_r" label="Открыть" onClick={() => setDrawerUnit(u)} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {meta && meta.last_page > 1 && mode === 'table' && (
@@ -678,9 +760,76 @@ export default function UnitsPage() {
           </Button>
         </div>
       </Modal>
+
+      {/* Bulk: смена статуса */}
+      <Modal
+        open={bulkStatusModal}
+        onClose={() => setBulkStatusModal(false)}
+        title={`Сменить статус: ${sel.count}`}
+        width={420}
+      >
+        <p className="t-body">
+          Выберите новый статус для выделенных кладовок. Активные аренды при этом не
+          проверяются — действие применится напрямую.
+        </p>
+        <div className="mt-3">
+          <Select
+            value={bulkStatusValue}
+            onChange={(e) => setBulkStatusValue(e.target.value as UnitStatus)}
+          >
+            {STATUS_VALUES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="row gap-2 mt-4" style={{ justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={() => setBulkStatusModal(false)}>
+            Отмена
+          </Button>
+          <Button
+            variant="primary"
+            icon="check"
+            loading={bulkStatusMut.isPending}
+            onClick={() =>
+              bulkStatusMut.mutate({ ids: [...sel.selected], status: bulkStatusValue })
+            }
+          >
+            Применить
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Bulk: удаление */}
+      <Modal
+        open={bulkDeleteModal}
+        onClose={() => setBulkDeleteModal(false)}
+        title={`Удалить кладовки: ${sel.count}`}
+        width={460}
+      >
+        <p className="t-body">
+          Будут удалены <strong>{sel.count}</strong> кладовок. Кладовки с активной арендой
+          будут пропущены — после операции вы увидите, какие именно.
+        </p>
+        <div className="row gap-2 mt-4" style={{ justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onClick={() => setBulkDeleteModal(false)}>
+            Отмена
+          </Button>
+          <Button
+            variant="danger"
+            icon="trash"
+            loading={bulkDeleteMut.isPending}
+            onClick={() => bulkDeleteMut.mutate([...sel.selected])}
+          >
+            Удалить
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 }
+
 
 interface FormModalProps {
   open: boolean;

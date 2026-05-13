@@ -81,12 +81,19 @@ Route::prefix('v1')->group(function () {
             Route::put('locations/{location}', [LocationController::class, 'update']);
             Route::delete('locations/{location}', [LocationController::class, 'destroy']);
 
+            // Контейнеры (массовые операции — ДО `/{container}` роутов, иначе
+            // /containers/bulk матчится как /containers/{container} с id='bulk').
+            Route::post('containers/bulk/status', [ContainerController::class, 'bulkUpdateStatus']);
+            Route::delete('containers/bulk', [ContainerController::class, 'bulkDestroy']);
             // Контейнеры (CRUD)
             Route::post('containers', [ContainerController::class, 'store']);
             Route::put('containers/{container}', [ContainerController::class, 'update']);
             Route::delete('containers/{container}', [ContainerController::class, 'destroy']);
             Route::patch('containers/{container}/status', [ContainerController::class, 'updateStatus']);
 
+            // Кладовки (массовые операции — ДО `/{unit}` роутов).
+            Route::post('units/bulk/status', [UnitController::class, 'bulkUpdateStatus']);
+            Route::delete('units/bulk', [UnitController::class, 'bulkDestroy']);
             // Кладовки (CRUD)
             Route::post('units', [UnitController::class, 'store']);
             Route::put('units/{unit}', [UnitController::class, 'update']);

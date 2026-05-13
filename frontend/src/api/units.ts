@@ -45,4 +45,20 @@ export const unitsApi = {
       .then((r) => r.data.data),
 
   remove: (id: number) => api.delete<{ message: string }>(`/units/${id}`).then((r) => r.data),
+
+  bulkUpdateStatus: (ids: number[], status: UnitStatus) =>
+    api
+      .post<{ message: string; data: { updated_count: number } }>('/units/bulk/status', {
+        ids,
+        status,
+      })
+      .then((r) => r.data),
+
+  bulkRemove: (ids: number[]) =>
+    api
+      .delete<{
+        message: string;
+        data: { deleted_count: number; skipped: Array<{ id: number; reason: string }> };
+      }>('/units/bulk', { data: { ids } })
+      .then((r) => r.data),
 };

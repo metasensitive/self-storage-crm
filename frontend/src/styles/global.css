@@ -350,6 +350,68 @@ input, select, textarea { font: inherit; color: inherit; }
   box-shadow: 0 0 0 4px oklch(0.22 0.01 60 / 0.06);
 }
 
+/* ============ CHECKBOX (UI) ============
+ * Кастомный чекбокс под дизайн-токены. Заменяет стандартный нативный
+ * (через `appearance: none`), но остаётся обычным `<input type="checkbox">`
+ * — то есть наследует фокус, keyboard, screen reader и indeterminate API.
+ */
+.ui-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  margin: 0;
+  transition: background .14s, border-color .14s, box-shadow .14s;
+  display: inline-block;
+  vertical-align: middle;
+}
+.ui-checkbox:hover {
+  border-color: var(--ink-3);
+}
+.ui-checkbox:checked,
+.ui-checkbox:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ui-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+.ui-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* Чек — две стороны border'а, повёрнутые в галочку */
+.ui-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--accent-fg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+/* Полоска для частично-выделенного состояния */
+.ui-checkbox:indeterminate::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 2px;
+  background: var(--accent-fg);
+  border-radius: 1px;
+  transform: translateY(-50%);
+}
+
 /* ============ AVATAR ============ */
 .av {
   width: 28px; height: 28px;
