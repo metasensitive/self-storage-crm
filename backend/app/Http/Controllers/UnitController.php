@@ -218,7 +218,17 @@ class UnitController extends Controller
             'status' => ['required', 'string', Rule::in(Unit::getAvailableStatuses())],
         ]);
 
-        $count = Unit::query()->whereIn('id', $data['ids'])->update(['status' => $data['status']]);
+        // Обновляем поштучно через модели, чтобы сработали eloquent-события
+        // (updated) и trait `LogsActivity` записал запись в журнал. Mass-update
+        // через ->update(...) был бы быстрее, но обходит события — а это
+        // важнее для аудита (особенно админских массовых смен статуса).
+        $count = 0;
+        Unit::query()->whereIn('id', $data['ids'])->get()->each(function (Unit $unit) use ($data, &$count) {
+            if ($unit->status !== $data['status']) {
+                $unit->update(['status' => $data['status']]);
+                $count++;
+            }
+        });
 
         return response()->json([
             'message' => "Обновлено: {$count}",

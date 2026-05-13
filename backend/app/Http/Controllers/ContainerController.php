@@ -215,9 +215,15 @@ class ContainerController extends Controller
             'status' => ['required', 'string', Rule::in(Container::getAvailableStatuses())],
         ]);
 
-        $count = Container::query()
-            ->whereIn('id', $data['ids'])
-            ->update(['status' => $data['status']]);
+        // Per-model update — чтобы сработали события и trait LogsActivity
+        // записал каждую смену статуса в аудит-лог.
+        $count = 0;
+        Container::query()->whereIn('id', $data['ids'])->get()->each(function (Container $c) use ($data, &$count) {
+            if ($c->status !== $data['status']) {
+                $c->update(['status' => $data['status']]);
+                $count++;
+            }
+        });
 
         return response()->json([
             'message' => "Обновлено: {$count}",
