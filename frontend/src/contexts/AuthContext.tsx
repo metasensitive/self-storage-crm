@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
 import { profileApi } from '@/api/profile';
 import { getToken, registerUnauthorizedHandler, setToken } from '@/api/client';
@@ -65,6 +66,7 @@ export function detectMustChangePassword(u: User | null): boolean {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [mustChangePassword, setMustChangePassword] = useState(false);
@@ -119,28 +121,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     registerUnauthorizedHandler(() => {
       resetEcho();
+      queryClient.clear();
       applyUser(null);
     });
     return () => registerUnauthorizedHandler(null);
-  }, []);
+  }, [queryClient]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { user: authUser, token } = await authApi.login({ email, password });
-    setToken(token);
-    // Догружаем полный профиль (с created_at и т.д.)
-    const full = await profileApi.show().catch(
-      () =>
-        ({
-          ...authUser,
-          created_at: '',
-          updated_at: '',
-        }) as User,
-    );
-    applyUser(full);
-    rememberAccount(full, token);
-    setStatus('ready');
-    return full;
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { user: authUser, token } = await authApi.login({ email, password });
+      setToken(token);
+      // Догружаем полный профиль (с created_at и т.д.)
+      const full = await profileApi.show().catch(
+        () =>
+          ({
+            ...authUser,
+            created_at: '',
+            updated_at: '',
+          }) as User,
+      );
+      // Новый юзер — кэш предыдущего невалиден (актуально если в этой
+      // вкладке кто-то был залогинен).
+      queryClient.clear();
+      applyUser(full);
+      rememberAccount(full, token);
+      setStatus('ready');
+      return full;
+    },
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
     const currentId = user?.id;
@@ -151,6 +160,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     setToken(null);
     resetEcho();
+    queryClient.clear();
     applyUser(null);
     if (currentId != null) {
       const next = accountsStore.remove(currentId);
@@ -158,27 +168,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [user]);
 
-  const switchAccount = useCallback(async (id: number) => {
-    const acc = accountsStore.find(id);
-    if (!acc) return;
-    setToken(acc.token);
-    resetEcho(); // следующий getEcho() поднимется уже под новый токен
-    setStatus('loading');
-    try {
-      const me = await profileApi.show();
-      applyUser(me);
-      // Обновим запись в localStorage свежими полями (имя/аватар могли измениться)
-      rememberAccount(me, acc.token);
-    } catch {
-      // Токен мёртв на сервере — удаляем аккаунт локально
-      accountsStore.remove(id);
-      setAccounts(accountsStore.list());
-      setToken(null);
-      applyUser(null);
-    } finally {
-      setStatus('ready');
-    }
-  }, []);
+  const switchAccount = useCallback(
+    async (id: number) => {
+      const acc = accountsStore.find(id);
+      if (!acc) return;
+      setToken(acc.token);
+      resetEcho(); // следующий getEcho() поднимется уже под новый токен
+      // Сразу выбрасываем кэш предыдущего юзера: его уведомления, сессии,
+      // профиль — всё в кэше react-query относится к старому аккаунту и
+      // не должно «протечь» в новый. Без этого после свитча компоненты
+      // продолжают показывать данные предыдущего юзера до ручного refresh.
+      queryClient.clear();
+      setStatus('loading');
+      try {
+        const me = await profileApi.show();
+        applyUser(me);
+        // Обновим запись в localStorage свежими полями (имя/аватар могли измениться)
+        rememberAccount(me, acc.token);
+      } catch {
+        // Токен мёртв на сервере — удаляем аккаунт локально
+        accountsStore.remove(id);
+        setAccounts(accountsStore.list());
+        setToken(null);
+        applyUser(null);
+      } finally {
+        setStatus('ready');
+      }
+    },
+    [queryClient],
+  );
 
   const removeAccount = useCallback(
     (id: number) => {
