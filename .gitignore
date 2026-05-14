@@ -4,29 +4,46 @@
 .DS_Store
 *.log
 *.tmp
+*.bak
+*.orig
+*.swp
+*~
 Thumbs.db
+coverage/
 
 # ========================================
-# IDE (PhpStorm)
+# IDE / AI-агенты
 # ========================================
 .idea/
+.vscode/
+.fleet/
+.claude/
 
 # ========================================
 # Backend (Laravel)
 # ========================================
 backend/vendor/
 backend/.env
-backend/storage/
+backend/.env.backup
+backend/.env.production
 backend/public/storage
 backend/public/hot
 backend/public/build
-backend/bootstrap/cache/
+backend/bootstrap/cache/*.php
 backend/node_modules/
+backend/.phpunit.result.cache
+backend/.phpunit.cache/
+# Содержимое storage/ игнорируется через подпапочные .gitignore — структура папок коммитится
+backend/storage/*.key
+backend/storage/pail/
 
 # ========================================
 # Frontend (React)
 # ========================================
 frontend/node_modules/
 frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
 frontend/.env
 frontend/.env.local
+frontend/*.tsbuildinfo
