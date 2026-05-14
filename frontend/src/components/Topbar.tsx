@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { NotificationBell } from './NotificationBell';
 
 interface TopbarProps {
   crumbs?: ReactNode[];
@@ -24,6 +25,7 @@ export function Topbar({ crumbs = [], actions }: TopbarProps) {
       )}
       <div style={{ marginLeft: 'auto' }} />
       {actions && <div className="row gap-2">{actions}</div>}
+      <NotificationBell />
     </header>
   );
 }

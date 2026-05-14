@@ -53,4 +53,9 @@ export const queryKeys = {
     list: (params: Record<string, unknown> = {}) =>
       [...queryKeys.activityLogs.all, 'list', params] as const,
   },
+
+  notifications: {
+    all: ['notifications'] as const,
+    list: () => [...queryKeys.notifications.all, 'list'] as const,
+  },
 };
