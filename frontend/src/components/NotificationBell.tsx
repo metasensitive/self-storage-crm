@@ -49,7 +49,7 @@ export function NotificationBell() {
   const popRef = useRef<HTMLDivElement>(null);
 
   const q = useQuery({
-    queryKey: queryKeys.notifications.list(),
+    queryKey: queryKeys.notifications.list(user?.id),
     queryFn: notificationsApi.list,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
