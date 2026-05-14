@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { Topbar } from '@/components/Topbar';
 import { Empty } from '@/components/ui/Empty';
@@ -18,7 +18,14 @@ import { locationsApi } from '@/api/locations';
 import { rentsApi } from '@/api/rents';
 import { queryKeys } from '@/lib/queryKeys';
 import { fmtDate, fmtMoney, pluralize } from '@/lib/format';
+import { useRealtimeEvent } from '@/lib/useRealtimeEvent';
 import type { Rent } from '@/api/types';
+
+interface ResourceChangedPayload {
+  resource: 'location' | 'container' | 'unit' | 'rent' | 'user';
+  id: number;
+  action: 'created' | 'updated' | 'deleted';
+}
 
 function greeting(name: string): string {
   const h = new Date().getHours();
@@ -53,6 +60,26 @@ function buildRevenueSeries(
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Live: любое изменение в сети инвалидирует аналитику и затронутый ресурс.
+  // Дашборд сам перерисуется со свежими цифрами без ручного refresh.
+  useRealtimeEvent<ResourceChangedPayload>({
+    channel: 'app.changes',
+    event: 'resource.changed',
+    onEvent: (payload) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      const map = {
+        location: queryKeys.locations.all,
+        container: queryKeys.containers.all,
+        unit: queryKeys.units.all,
+        rent: queryKeys.rents.all,
+        user: queryKeys.users.all,
+      } as const;
+      const key = map[payload?.resource];
+      if (key) void queryClient.invalidateQueries({ queryKey: key });
+    },
+  });
 
   const networkQ = useQuery({
     queryKey: queryKeys.analytics.network(),

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Topbar } from '@/components/Topbar';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +12,7 @@ import { Ic } from '@/components/Ic';
 import { activityLogsApi } from '@/api/activityLogs';
 import { queryKeys } from '@/lib/queryKeys';
 import { fmtDate, fmtDateTime } from '@/lib/format';
+import { useRealtimeEvent } from '@/lib/useRealtimeEvent';
 import type { ActivityAction, ActivityLog, ActivitySubjectType } from '@/api/types';
 
 /** Именительный падеж — используется в фильтре «тип объекта». */
@@ -132,9 +133,19 @@ const VALUE_LABELS: Partial<
 };
 
 export default function ActivityLogPage() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [subjectType, setSubjectType] = useState<ActivitySubjectType | 'all'>('all');
   const [action, setAction] = useState<ActivityAction | 'all'>('all');
+
+  // Live: при пуше «log.created» из Reverb инвалидируем все страницы журнала.
+  // Polling из useQuery остаётся как fallback (если Reverb не настроен/недоступен).
+  useRealtimeEvent({
+    channel: 'admin.activity',
+    event: 'log.created',
+    onEvent: () =>
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activityLogs.all }),
+  });
 
   const params = useMemo(
     () => ({
