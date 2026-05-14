@@ -5,7 +5,7 @@ namespace App\Events;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -18,7 +18,7 @@ use Illuminate\Queue\SerializesModels;
  * отдельных каналов на роли, (б) фронт всё равно делает фетч с учётом своих
  * фильтров.
  */
-class ResourceChanged implements ShouldBroadcast
+class ResourceChanged implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
