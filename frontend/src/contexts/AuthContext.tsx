@@ -13,6 +13,7 @@ import { authApi } from '@/api/auth';
 import { profileApi } from '@/api/profile';
 import { getToken, registerUnauthorizedHandler, setToken } from '@/api/client';
 import { accountsStore, type StoredAccount } from '@/lib/accounts';
+import { resetEcho } from '@/lib/echo';
 import type { Role, User } from '@/api/types';
 
 interface AuthContextValue {
@@ -117,6 +118,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Подключаем глобальный обработчик 401: чистим состояние, редирект делает страница
   useEffect(() => {
     registerUnauthorizedHandler(() => {
+      resetEcho();
       applyUser(null);
     });
     return () => registerUnauthorizedHandler(null);
@@ -148,6 +150,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // даже если сервер вернул ошибку — локально чистим состояние
     }
     setToken(null);
+    resetEcho();
     applyUser(null);
     if (currentId != null) {
       const next = accountsStore.remove(currentId);
@@ -159,6 +162,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const acc = accountsStore.find(id);
     if (!acc) return;
     setToken(acc.token);
+    resetEcho(); // следующий getEcho() поднимется уже под новый токен
     setStatus('loading');
     try {
       const me = await profileApi.show();

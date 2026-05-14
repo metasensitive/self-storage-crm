@@ -35,6 +35,7 @@
 | **Формы**            | React Hook Form + Zod                                                |
 | **Стили**            | Чистый CSS на oklch-токенах, светлая/тёмная темы                     |
 | **Геокодинг**        | Photon (OpenStreetMap) — autocomplete-сервис от Komoot, без API-ключа |
+| **Real-time**        | Laravel Reverb (WebSocket, Pusher-протокол) + Laravel Echo + pusher-js |
 | **Документация API** | Swagger (Scramble)                                                   |
 | **Тестирование**     | PHPUnit — 26 тестов, 84 assertions                                   |
 
@@ -52,6 +53,8 @@ self-storage-crm/
 │   │   │   ├── Middleware/       # RoleMiddleware, RefreshTokenMetadata
 │   │   │   ├── Requests/         # FormRequest на каждое мутирующее действие
 │   │   │   └── Resources/        # JsonResource для ответов API
+│   │   ├── Events/               # ResourceChanged, ActivityLogCreated
+│   │   │                           (broadcast через Reverb)
 │   │   ├── Mail/                 # ResetPasswordMail
 │   │   ├── Models/               # User, Location, Container, Unit, Rent,
 │   │   │   │                       ActivityLog
@@ -80,7 +83,8 @@ self-storage-crm/
         │                           applyApiErrors, password, geocoding,
         │                           userAgent, accounts, enrich,
         │                           useOpenParam (deep-link к объектам),
-        │                           useSelection (мульти-выделение строк)
+        │                           useSelection (мульти-выделение строк),
+        │                           echo + useRealtimeEvent (live-обновления)
         └── styles/               # global.css, landing.css
 ```
 
@@ -95,15 +99,18 @@ cd backend
 composer install
 cp .env.example .env
 # Настроить БД (PostgreSQL) и почту (Mailtrap для dev) в .env
+# В .env заполнить REVERB_APP_ID/KEY/SECRET (любые случайные значения для dev)
 php artisan key:generate
 php artisan migrate --seed
 php artisan storage:link
-php artisan serve
+# В двух разных терминалах:
+php artisan serve            # REST API на :8000
+php artisan reverb:start     # WebSocket-сервер на :8080
 ```
 
-После запуска API доступен на `http://localhost:8000`.
+После запуска API доступен на `http://localhost:8000`, Reverb — на `ws://localhost:8080`.
 
-В `backend/.env` для корректной работы writeups и писем должны быть указаны:
+В `backend/.env` для корректной работы writeups, писем и WebSocket должны быть указаны:
 
 ```env
 APP_URL=http://localhost:8000
@@ -111,6 +118,15 @@ FRONTEND_URL=http://localhost:5173
 # Опционально: дополнительные origins для CORS через запятую.
 # Локальные порты Vite (dev 5173, preview 4173) уже разрешены по умолчанию.
 CORS_ALLOWED_ORIGINS=
+
+# Reverb (WebSocket). Те же ключи должны попасть в frontend/.env под VITE_REVERB_*.
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=<любое число>
+REVERB_APP_KEY=<random hex>
+REVERB_APP_SECRET=<random hex>
+REVERB_HOST=localhost
+REVERB_PORT=8080
+REVERB_SCHEME=http
 ```
 
 ### Установка frontend
@@ -118,11 +134,13 @@ CORS_ALLOWED_ORIGINS=
 ```bash
 cd frontend
 cp .env.example .env
+# В .env заполнить VITE_REVERB_APP_KEY/HOST/PORT/SCHEME из backend/.env
+# (если оставить пустыми — фронт молча работает на refetch/polling без live-апдейтов)
 npm install
 npm run dev
 ```
 
-Приложение доступно на `http://localhost:5173`. Запросы к `/api/*` проксируются Vite на бэкенд `127.0.0.1:8000` — CORS не задействован.
+Приложение доступно на `http://localhost:5173`. Запросы к `/api/*` проксируются Vite на бэкенд `127.0.0.1:8000`, WebSocket идёт напрямую на `:8080` — три отдельных процесса (serve / reverb:start / vite dev).
 
 ---
 
@@ -159,6 +177,13 @@ npm run dev
 ### Лендинг
 - Полноценная маркетинговая страница: Hero с интерактивной живой сеткой 12×8, бесконечная лента статистики, live-дашборд с count-up анимациями, интерактивный контейнер 7×8 для демонстрации, bento-фичи, stats-полоса с count-up по скроллу, тёмный CTA-блок
 - Плавная прокрутка по якорям, переключатель темы
+
+### Real-time
+- **Live-обновления через WebSocket** (Laravel Reverb + Laravel Echo). Любой CRUD по локациям/контейнерам/кладовкам/арендам/сотрудникам автоматически пушится подписчикам через два приватных канала: `admin.activity` (журнал, только админ) и `app.changes` (общий, ресурс+id+action).
+- **DashboardPage** слушает `resource.changed` → инвалидирует кэш аналитики и затронутого ресурса → KPI, графики и списки обновляются без перезагрузки.
+- **ActivityLogPage** слушает `log.created` → мгновенно подтягивает новые записи. 15-сек polling сохранён как fallback на случай, когда Reverb недоступен.
+- Авторизация private-каналов — через тот же Sanctum bearer-токен (эндпоинт `/api/broadcasting/auth` обёрнут в `auth:sanctum`). При logout/switch-account Echo пересоединяется под новый токен.
+- Если `VITE_REVERB_APP_KEY` пуст — фронт деградирует к refetch/polling без ошибок.
 
 ### Visual / UX
 - Двухколоночный AuthLayout с серифным заголовком
@@ -284,6 +309,8 @@ php artisan route:cache
 php artisan view:cache
 php artisan migrate --force
 ```
+
+Дополнительно для real-time: `php artisan reverb:start` должен крутиться как отдельный сервис (systemd / supervisor / pm2), nginx проксирует `/app/*` и `wss://app.example.com` на порт Reverb с TLS-терминацией. На фронте — `VITE_REVERB_SCHEME=https` и `VITE_REVERB_PORT=443`.
 
 ---
 
