@@ -22,13 +22,46 @@ function relTime(iso: string): string {
   return dayjs(iso).format('D MMM');
 }
 
-function describe(n: AppNotification): string {
+/** Возвращает actor-prefix: «Вы» если это ты, иначе имя автора. */
+function actorOf(n: AppNotification, currentUserId?: number): { name: string; mine: boolean } {
+  const actorId = n.data.actor_id;
+  const mine =
+    typeof currentUserId === 'number' &&
+    typeof actorId === 'number' &&
+    actorId === currentUserId;
+  const name = mine ? 'Вы' : ((n.data.actor_name as string | undefined) ?? 'Сотрудник');
+  return { name, mine };
+}
+
+function describe(n: AppNotification, currentUserId?: number): string {
+  const { name, mine } = actorOf(n, currentUserId);
+
   if (n.type === 'rent.created') {
-    const actor = n.data.actor_name as string | undefined;
     const unit = n.data.unit_number;
     const code = n.data.container_code as string | undefined;
     const where = unit ? ` №${unit}${code ? ` в ${code}` : ''}` : '';
-    return `${actor ?? 'Сотрудник'} создал аренду кладовки${where}`;
+    return `${name} ${mine ? 'создали' : 'создал'} аренду кладовки${where}`;
+  }
+  if (n.type === 'location.created') {
+    const locName = n.data.location_name as string | undefined;
+    const city = n.data.city as string | undefined;
+    return `${name} ${mine ? 'добавили' : 'добавил'} локацию «${locName ?? '—'}»${
+      city ? ` (${city})` : ''
+    }`;
+  }
+  if (n.type === 'container.created') {
+    const code = n.data.container_code as string | undefined;
+    const loc = n.data.location_name as string | undefined;
+    return `${name} ${mine ? 'добавили' : 'добавил'} контейнер ${code ?? '—'}${
+      loc ? ` в локации «${loc}»` : ''
+    }`;
+  }
+  if (n.type === 'unit.created') {
+    const num = n.data.unit_number;
+    const code = n.data.container_code as string | undefined;
+    return `${name} ${mine ? 'добавили' : 'добавил'} кладовку №${num ?? '—'}${
+      code ? ` в ${code}` : ''
+    }`;
   }
   return 'Новое событие';
 }
@@ -36,6 +69,15 @@ function describe(n: AppNotification): string {
 function deepLink(n: AppNotification): string | null {
   if (n.type === 'rent.created' && typeof n.data.rent_id === 'number') {
     return `/rents?open=${n.data.rent_id}`;
+  }
+  if (n.type === 'location.created' && typeof n.data.location_id === 'number') {
+    return `/locations?open=${n.data.location_id}`;
+  }
+  if (n.type === 'container.created' && typeof n.data.container_id === 'number') {
+    return `/containers?open=${n.data.container_id}`;
+  }
+  if (n.type === 'unit.created' && typeof n.data.unit_id === 'number') {
+    return `/units?open=${n.data.unit_id}`;
   }
   return null;
 }
@@ -93,6 +135,21 @@ export function NotificationBell() {
     mutationFn: notificationsApi.markAllRead,
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications.all }),
   });
+
+  // Авто-mark-all-read при закрытии попапа: пользователь увидел список,
+  // значит уведомления больше не «новые». Идемпотентно — если непрочитанных
+  // нет, не дёргаем.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      const hasUnread = (q.data?.meta.unread_count ?? 0) > 0;
+      if (hasUnread) markAllMut.mutate();
+    }
+    wasOpenRef.current = open;
+    // q.data — стабильная ссылка от react-query; не вносим её в deps,
+    // иначе markAllMut будет вызываться лишний раз при апдейте списка.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   function handleItemClick(n: AppNotification) {
     if (!n.read_at) markReadMut.mutate(n.id);
@@ -266,7 +323,7 @@ export function NotificationBell() {
                           className="t-body"
                           style={{ fontWeight: unreadItem ? 500 : 400 }}
                         >
-                          {describe(n)}
+                          {describe(n, user.id)}
                         </div>
                         <div className="t-small dim mt-1">{relTime(n.created_at)}</div>
                       </div>
