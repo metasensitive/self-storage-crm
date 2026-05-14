@@ -37,7 +37,7 @@
 | **Геокодинг**        | Photon (OpenStreetMap) — autocomplete-сервис от Komoot, без API-ключа |
 | **Real-time**        | Laravel Reverb (WebSocket, Pusher-протокол) + Laravel Echo + pusher-js |
 | **Документация API** | Swagger (Scramble)                                                   |
-| **Тестирование**     | PHPUnit — 30 тестов, 98 assertions                                   |
+| **Тестирование**     | PHPUnit — 35 тестов, 112 assertions                                  |
 
 ---
 
@@ -242,7 +242,7 @@ cd backend
 php artisan test --testsuite=Feature
 ```
 
-**Результат:** ✅ 30 passed, 98 assertions.
+**Результат:** ✅ 35 passed, 112 assertions.
 
 Покрытие:
 - Аутентификация (login, forgot-password, reset-password)
@@ -251,7 +251,9 @@ php artisan test --testsuite=Feature
 - Аналитика (расчёт сетевой статистики)
 - Аудит-лог (запись created/updated/deleted, фильтр по типу объекта, корректный diff без чувствительных полей)
 - Массовые действия (bulk update статуса, bulk delete с пропуском объектов, имеющих зависимости — активные аренды у кладовок, кладовки у контейнеров)
-- In-app уведомления (рассылка всем кроме создателя, list с unread_count, mark-all-read, защита от гостя)
+- In-app уведомления (рассылка всем сотрудникам включая автора, list с unread_count, mark-all-read, защита от гостя)
+- Email (Mail::fake — reset-password отправляется реальному пользователю, неизвестный email молчит)
+- Кладовки (автогенерация номера в рамках контейнера при создании без `number`)
 
 ---
 
@@ -319,6 +321,71 @@ php artisan migrate --force
 
 ---
 
+## 📧 Email
+
+Транзакционные письма (сброс пароля, временный пароль для нового сотрудника) отправляются через Laravel `Mail` / `Notifications` — обычный SMTP. Шаблоны лежат в `backend/resources/views/emails/`.
+
+### Dev: Mailtrap
+
+В локальной разработке используется **Mailtrap** — почтовая «ловушка», письма не уходят реальным адресатам, а лежат в личном inbox на `mailtrap.io`. Удобно проверять верстку и содержимое без риска зацепить чьи-то ящики.
+
+Регистрация: https://mailtrap.io/ → создать inbox → скопировать SMTP-креды в `backend/.env`:
+
+```env
+MAIL_MAILER=smtp
+MAIL_HOST=sandbox.smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=<из_кабинета_mailtrap>
+MAIL_PASSWORD=<из_кабинета_mailtrap>
+MAIL_ENCRYPTION=tls
+```
+
+### Production: Yandex 360 для бизнеса
+
+В проде — **Yandex 360 для бизнеса**: почта на свой домен, лучшая доставляемость в `mail.ru`/`yandex.ru`, бесплатный тариф (до 5 ящиков, ~500 писем/сутки на ящик), оплата при расширении в RUB. Для self-storage CRM с типичным объёмом (десятки писем/сутки) free хватает с большим запасом.
+
+#### Шаги настройки
+
+1. **Купить домен** (если ещё нет) — `.ru` стоит ~190 ₽/год на REG.ru / Beget / Timeweb. Должен быть подтверждённый владельцем — нужно для DNS-настроек.
+2. **Подключить домен в Yandex 360 для бизнеса:**
+   - Регистрация на https://360.yandex.ru/business/.
+   - Раздел «Домены» → Добавить → ввести домен → подтвердить владение через TXT-запись в DNS-настройках регистратора (Yandex даст готовое значение).
+3. **Создать ящик** — обычно `noreply@yourdomain.ru` (для отправки) или `info@yourdomain.ru` (если хотите получать ответы).
+4. **Прописать DNS-записи доставляемости** (Yandex показывает готовые в кабинете — копируете в DNS у регистратора):
+   - **MX** — приёмник почты (нужен даже если получать не планируете — без MX другие провайдеры считают домен «дохлым»).
+   - **SPF** — `v=spf1 redirect=_spf.yandex.net` — авторизует Yandex отправлять от вашего имени.
+   - **DKIM** — публичный ключ из кабинета (Yandex генерирует).
+   - **DMARC** — `v=DMARC1; p=quarantine; rua=mailto:postmaster@yourdomain.ru`.
+   - DNS-распространение: 1–24 часа.
+5. **Получить «пароль приложения»** — в кабинете Yandex (id.yandex.ru) → «Безопасность» → «Пароли приложений» → создать для «Почта». Это отдельный токен от основного пароля, обязателен при включённой 2FA.
+6. **Прописать в `backend/.env` на проде:**
+   ```env
+   MAIL_MAILER=smtp
+   MAIL_HOST=smtp.yandex.ru
+   MAIL_PORT=465
+   MAIL_USERNAME=noreply@yourdomain.ru
+   MAIL_PASSWORD=<пароль_приложения>
+   MAIL_ENCRYPTION=ssl
+   MAIL_FROM_ADDRESS=noreply@yourdomain.ru
+   MAIL_FROM_NAME="SelfStorage CRM"
+   ```
+7. **Сбросить config-кэш:** `php artisan config:clear` (или `config:cache` если был включён).
+8. **Smoke-тест:**
+   ```bash
+   php artisan tinker
+   >>> Mail::raw('test', fn($m) => $m->to('your_personal@gmail.com')->subject('test'));
+   ```
+   Проверьте, что письмо пришло, не в спам, в заголовках `Authentication-Results` есть `spf=pass`, `dkim=pass`, `dmarc=pass`.
+
+#### Подводные камни
+
+- **DNS не распространился** — первые ~1–24 ч после добавления записей письма могут уходить в спам. Проверка через `dig TXT yourdomain.ru` / https://mxtoolbox.com.
+- **Лимит 500/сутки на ящик** — для маркетинговых рассылок мало, для CRM-транзакций с большим запасом. Если упрётесь — заводите второй ящик или переходите на платный тариф / UniSender Go.
+- **Mail.ru изредка фильтрует** домены без правильного DMARC. Поэтому DMARC-запись обязательна, не опциональна.
+- **`MAIL_PORT=587` с `tls`** тоже работает (STARTTLS) — если 465 в инфраструктуре заблокирован, попробуйте 587.
+
+---
+
 ## 🩺 Решение типовых проблем
 
 ### «Не удалось связаться с сервером» при логине / сбросе пароля
@@ -334,7 +401,10 @@ php artisan migrate --force
 
 ### Письмо со ссылкой сброса не приходит
 
-Проверьте настройки Mailtrap в `backend/.env` (MAIL_MAILER, MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD). Бэкенд возвращает `200 OK` независимо от существования email — это намеренно для защиты от перебора учёток.
+Бэкенд возвращает `200 OK` независимо от существования email — это намеренно для защиты от перебора учёток.
+
+- **В dev** — проверьте Mailtrap-креды в `backend/.env` (см. раздел «📧 Email → Dev»). Письма копятся в Inbox в кабинете mailtrap.io.
+- **В прод** — проверьте по очереди: (1) DNS-записи распространились (`dig TXT yourdomain.ru`), (2) `MAIL_PASSWORD` это **пароль приложения**, а не основной пароль ящика, (3) лог Laravel (`storage/logs/laravel.log`) — Yandex SMTP при отказе пишет понятную ошибку (`535 Login failure`, `554 5.7.1 Spam` и т.п.).
 
 ---
 
