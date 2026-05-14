@@ -53,4 +53,13 @@ export const queryKeys = {
     list: (params: Record<string, unknown> = {}) =>
       [...queryKeys.activityLogs.all, 'list', params] as const,
   },
+
+  notifications: {
+    all: ['notifications'] as const,
+    // user-scoped ключ — при свитче аккаунта (мульти-аккаунты) ключ меняется
+    // → react-query делает fresh-fetch и подтягивает уведомления нового юзера
+    // (а заодно ловит те, что пришли в его адрес пока он не был активен).
+    list: (userId: number | null | undefined) =>
+      [...queryKeys.notifications.all, 'list', userId ?? null] as const,
+  },
 };

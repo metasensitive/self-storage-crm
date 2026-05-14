@@ -10,6 +10,7 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\RentController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\NotificationController;
 
 /*
 | API Routes v1
@@ -29,6 +30,13 @@ Route::prefix('v1')->group(function () {
 
         // выход
         Route::post('auth/logout', [AuthController::class, 'logout']);
+
+        // уведомления (in-app)
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::post('read-all', [NotificationController::class, 'markAllRead']);
+            Route::patch('{id}/read', [NotificationController::class, 'markRead']);
+        });
 
         // профиль
         Route::prefix('profile')->group(function () {

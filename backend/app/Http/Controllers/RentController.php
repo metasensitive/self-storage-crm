@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Rent\StoreRentRequest;
 use App\Models\Rent;
+use App\Notifications\RentCreatedNotification;
+use App\Services\NotificationDispatcher;
 use App\Services\RentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -86,6 +88,13 @@ class RentController extends Controller
             'unit.container:id,code,location_id',
             'unit.container.location:id,name,city',
         ]);
+
+        // Рассылаем уведомление всем сотрудникам — включая создателя.
+        // Для него это как личная история действий (особенно полезно
+        // менеджерам, которым закрыт аудит-лог).
+        NotificationDispatcher::toAllStaff(
+            new RentCreatedNotification($rent, $request->user())
+        );
 
         return response()->json([
             'message' => 'Аренда создана',

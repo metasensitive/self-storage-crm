@@ -63,6 +63,25 @@ export function getEcho(): Echo<'reverb'> | null {
     },
   });
 
+  // Диагностика только в dev — состояние соединения и ошибки сразу в консоли.
+  if (import.meta.env.DEV) {
+    try {
+      const pusher = (instance as unknown as { connector: { pusher: Pusher } }).connector
+        .pusher;
+      pusher.connection.bind('state_change', (s: { previous: string; current: string }) => {
+        // eslint-disable-next-line no-console
+        console.info('[echo] state:', s.previous, '→', s.current);
+      });
+      pusher.connection.bind('error', (err: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error('[echo] connection error:', err);
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[echo] couldn’t attach diagnostics:', e);
+    }
+  }
+
   return instance;
 }
 

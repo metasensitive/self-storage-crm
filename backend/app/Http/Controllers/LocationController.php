@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Location\StoreLocationRequest;
 use App\Http\Requests\Location\UpdateLocationRequest;
 use App\Models\Location;
+use App\Notifications\LocationCreatedNotification;
+use App\Services\NotificationDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use App\Http\Resources\LocationResource;
@@ -55,6 +57,10 @@ class LocationController extends Controller
             'location_id' => $location->id,
             'name' => $location->name
         ]);
+
+        NotificationDispatcher::toAllStaff(
+            new LocationCreatedNotification($location, $request->user())
+        );
 
         return response()->json([
             'message' => 'Локация создана',

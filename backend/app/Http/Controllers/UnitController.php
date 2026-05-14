@@ -6,6 +6,8 @@ use App\Http\Requests\Unit\StoreUnitRequest;
 use App\Http\Requests\Unit\UpdateUnitRequest;
 use App\Models\Unit;
 use App\Models\Rent;
+use App\Notifications\UnitCreatedNotification;
+use App\Services\NotificationDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -76,6 +78,10 @@ class UnitController extends Controller
         ])->loadCount([
             'rents as active_rents_count' => fn($q) => $q->where('status', Rent::STATUS_ACTIVE)
         ]);
+
+        NotificationDispatcher::toAllStaff(
+            new UnitCreatedNotification($unit, $request->user())
+        );
 
         return response()->json([
             'message' => 'Кладовка создана',
