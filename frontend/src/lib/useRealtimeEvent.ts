@@ -27,11 +27,27 @@ export function useRealtimeEvent<T = unknown>(opts: Options<T>): void {
     if (opts.enabled === false) return;
     const echo = getEcho();
     if (!echo) return;
-    const handler = (payload: T) => cbRef.current(payload);
+    const handler = (payload: T) => {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info(`[echo] event ${opts.event} on ${opts.channel}:`, payload);
+      }
+      cbRef.current(payload);
+    };
     // listen() с точкой в начале = слушать событие с кастомным именем
     // (которое мы задали через broadcastAs()) — без префикса класса PHP.
     const ch = echo.private(opts.channel);
     ch.listen(`.${opts.event}`, handler as (e: unknown) => void);
+    // Логи подписки + auth-ошибок в dev.
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.info(`[echo] subscribing to ${opts.channel} for .${opts.event}`);
+      // pusher выкидывает 'pusher:subscription_succeeded' / 'pusher:subscription_error'
+      ch.error((err: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(`[echo] subscription error on ${opts.channel}:`, err);
+      });
+    }
     return () => {
       ch.stopListening(`.${opts.event}`, handler as (e: unknown) => void);
     };
