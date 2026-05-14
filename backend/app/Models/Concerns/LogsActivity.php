@@ -2,6 +2,8 @@
 
 namespace App\Models\Concerns;
 
+use App\Events\ActivityLogCreated;
+use App\Events\ResourceChanged;
 use App\Models\ActivityLog;
 use Illuminate\Database\Eloquent\Model;
 
@@ -43,7 +45,7 @@ trait LogsActivity
         }
 
         $request = request();
-        ActivityLog::create([
+        $log = ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => $action,
             'subject_type' => get_class($model),
@@ -56,6 +58,21 @@ trait LogsActivity
             'user_agent' => $request?->userAgent(),
             'created_at' => now(),
         ]);
+
+        // Broadcast: live-обновление журнала и live-обновление таблиц.
+        // Маппинг FQCN модели → короткое имя ресурса для фронта.
+        $resourceMap = [
+            \App\Models\Location::class => 'location',
+            \App\Models\Container::class => 'container',
+            \App\Models\Unit::class => 'unit',
+            \App\Models\Rent::class => 'rent',
+            \App\Models\User::class => 'user',
+        ];
+        $resource = $resourceMap[get_class($model)] ?? null;
+        if ($resource) {
+            broadcast(new ResourceChanged($resource, $model->getKey(), $action))->toOthers();
+        }
+        broadcast(new ActivityLogCreated($log->id))->toOthers();
     }
 
     protected static function buildChanges(Model $model, string $action): ?array

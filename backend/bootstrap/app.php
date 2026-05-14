@@ -11,6 +11,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withBroadcasting(
+        // Channels-файл + auth-эндпоинт для приватных каналов под Sanctum.
+        // SPA шлёт Bearer-токен — `web` guard здесь не подходит (cookie-based),
+        // поэтому переопределяем гард на `sanctum`.
+        __DIR__.'/../routes/channels.php',
+        ['prefix' => 'api', 'middleware' => ['auth:sanctum']],
+    )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
            'role' => \App\Http\Middleware\RoleMiddleware::class
