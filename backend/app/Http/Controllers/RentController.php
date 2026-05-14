@@ -2,15 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\NotificationReceived;
 use App\Http\Requests\Rent\StoreRentRequest;
 use App\Models\Rent;
-use App\Models\User;
 use App\Notifications\RentCreatedNotification;
+use App\Services\NotificationDispatcher;
 use App\Services\RentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Notification;
 use InvalidArgumentException;
 use Illuminate\Validation\Rule;
 use App\Http\Resources\RentResource;
@@ -91,18 +89,12 @@ class RentController extends Controller
             'unit.container.location:id,name,city',
         ]);
 
-        // Рассылаем уведомление всем сотрудникам кроме создателя.
-        // Database channel → запись в notifications. Дополнительно дёргаем
-        // ShouldBroadcastNow-событие на private-канале получателя — фронт
-        // моментально подтянет свежий список и пересчитает unread.
-        $actor = $request->user();
-        $recipients = User::query()->where('id', '!=', $actor->id)->get();
-        if ($recipients->isNotEmpty()) {
-            Notification::send($recipients, new RentCreatedNotification($rent, $actor));
-            foreach ($recipients as $user) {
-                broadcast(new NotificationReceived($user->id));
-            }
-        }
+        // Рассылаем уведомление всем сотрудникам — включая создателя.
+        // Для него это как личная история действий (особенно полезно
+        // менеджерам, которым закрыт аудит-лог).
+        NotificationDispatcher::toAllStaff(
+            new RentCreatedNotification($rent, $request->user())
+        );
 
         return response()->json([
             'message' => 'Аренда создана',

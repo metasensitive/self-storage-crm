@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Container\StoreContainerRequest;
 use App\Http\Requests\Container\UpdateContainerRequest;
 use App\Models\Container;
+use App\Notifications\ContainerCreatedNotification;
+use App\Services\NotificationDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
@@ -72,6 +74,10 @@ class ContainerController extends Controller
         ]);
 
         $container->load('location:id,name,city')->loadCount('units');
+
+        NotificationDispatcher::toAllStaff(
+            new ContainerCreatedNotification($container, $request->user())
+        );
 
         return response()->json([
             'message' => 'Контейнер создан',

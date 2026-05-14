@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 class NotificationsTest extends TestCase
 {
-    public function test_creating_rent_notifies_other_users(): void
+    public function test_creating_rent_notifies_all_staff_including_actor(): void
     {
         $admin = User::factory()->create([
             'email' => 'admin@test.com',
@@ -43,14 +43,59 @@ class NotificationsTest extends TestCase
             'date_to' => '2026-06-15',
         ], $this->authHeader($managerToken))->assertStatus(201);
 
-        // Создатель — без уведомления, остальные — с уведомлением.
-        $this->assertCount(0, $manager->fresh()->notifications);
+        // Создатель тоже получает уведомление — это его «история действий»
+        // (особенно важно для менеджеров без доступа к аудит-логу).
+        $this->assertCount(1, $manager->fresh()->notifications);
         $this->assertCount(1, $admin->fresh()->notifications);
         $this->assertCount(1, $otherManager->fresh()->notifications);
 
         $note = $admin->fresh()->notifications->first();
         $this->assertSame('rent.created', $note->data['type']);
         $this->assertSame($manager->id, $note->data['actor_id']);
+    }
+
+    public function test_creating_location_notifies_all_staff(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $manager = User::factory()->create(['role' => User::ROLE_MANAGER]);
+
+        $token = $admin->createToken('t')->plainTextToken;
+
+        $this->postJson('/api/v1/locations', [
+            'name' => 'ЖК Тест',
+            'city' => 'Москва',
+            'address' => 'ул. Тестовая, 1',
+            'latitude' => 55.7,
+            'longitude' => 37.6,
+            'status' => 'active',
+        ], $this->authHeader($token))->assertStatus(201);
+
+        $this->assertCount(1, $admin->fresh()->notifications);
+        $this->assertCount(1, $manager->fresh()->notifications);
+        $this->assertSame('location.created', $admin->fresh()->notifications->first()->data['type']);
+    }
+
+    public function test_creating_unit_notifies_all_staff(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $manager = User::factory()->create(['role' => User::ROLE_MANAGER]);
+
+        $location = Location::factory()->create();
+        $container = Container::factory()->create(['location_id' => $location->id]);
+
+        $token = $admin->createToken('t')->plainTextToken;
+
+        $this->postJson('/api/v1/units', [
+            'container_id' => $container->id,
+            'number' => 42,
+            'size' => 5.5,
+            'price' => 1500,
+            'status' => 'free',
+        ], $this->authHeader($token))->assertStatus(201);
+
+        $this->assertCount(1, $admin->fresh()->notifications);
+        $this->assertCount(1, $manager->fresh()->notifications);
+        $this->assertSame('unit.created', $admin->fresh()->notifications->first()->data['type']);
     }
 
     public function test_user_lists_own_notifications(): void
