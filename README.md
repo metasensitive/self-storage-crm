@@ -68,7 +68,6 @@ self-storage-crm/
 │   └── tests/
 │
 └── frontend/                     # React SPA
-    ├── design-source/            # read-only бандл дизайн-прототипа (референс)
     └── src/
         ├── api/                  # axios + типы + REST-обёртки
         ├── components/
