@@ -63,7 +63,16 @@ class UnitController extends Controller
      */
     public function store(StoreUnitRequest $request): JsonResponse
     {
-        $unit = Unit::create($request->validated());
+        $data = $request->validated();
+
+        // Если номер не задан клиентом — генерируем следующий по правилу
+        // «max(number) + 1 в рамках контейнера». Аналогично авто-генерации
+        // кода контейнера, чтобы оператору не приходилось придумывать номер.
+        if (empty($data['number'])) {
+            $data['number'] = $this->generateNextUnitNumber($data['container_id']);
+        }
+
+        $unit = Unit::create($data);
 
         Log::info('Кладовка создана', [
             'user_id' => $request->user()->id,
@@ -87,6 +96,21 @@ class UnitController extends Controller
             'message' => 'Кладовка создана',
             'data' => new UnitResource($unit),
         ], 201);
+    }
+
+    /**
+     * Следующий свободный номер в контейнере: max + 1, с коллизионным
+     * перебором (на случай гонок). Уникальность всё равно проверена в БД
+     * на уровне правил StoreUnitRequest.
+     */
+    private function generateNextUnitNumber(int $containerId): int
+    {
+        $max = Unit::where('container_id', $containerId)->max('number') ?? 0;
+        $next = $max + 1;
+        while (Unit::where('container_id', $containerId)->where('number', $next)->exists()) {
+            $next++;
+        }
+        return $next;
     }
 
     /**

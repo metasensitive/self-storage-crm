@@ -9,7 +9,9 @@ export interface UnitsListParams {
 
 export interface CreateUnitPayload {
   container_id: number;
-  number: number;
+  /** Опционально — если не передан, бэкенд сгенерирует следующий по правилу
+   *  max(number) + 1 в рамках выбранного контейнера. */
+  number?: number;
   size: number;
   price: number;
   status: UnitStatus;

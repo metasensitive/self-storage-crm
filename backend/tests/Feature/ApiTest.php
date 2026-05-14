@@ -215,4 +215,25 @@ class ApiTest extends TestCase
         $this->assertEquals(3, $response->json('data.rented_units'));
         $this->assertEquals(1500.0, $response->json('data.monthly_income'));
     }
+
+    public function test_unit_number_auto_generated_when_omitted(): void
+    {
+        $token = $this->adminToken();
+        $location = Location::factory()->create();
+        $container = Container::factory()->create(['location_id' => $location->id]);
+        // Уже есть кладовки в этом контейнере — №2 и №5.
+        Unit::factory()->create(['container_id' => $container->id, 'number' => 2]);
+        Unit::factory()->create(['container_id' => $container->id, 'number' => 5]);
+
+        // Создаём без номера — должен сгенерироваться следующий после max (6).
+        $response = $this->postJson('/api/v1/units', [
+            'container_id' => $container->id,
+            'size' => 3.5,
+            'price' => 500,
+            'status' => 'free',
+        ], $this->authHeader($token));
+
+        $response->assertStatus(201);
+        $this->assertEquals(6, $response->json('data.number'));
+    }
 }
