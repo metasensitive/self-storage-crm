@@ -67,10 +67,13 @@ const createSchema = z.object({
     .number({ invalid_type_error: 'Выберите контейнер' })
     .int()
     .positive('Выберите контейнер'),
+  // Номер опционален: для создания инпут скрыт, бэк сам присваивает следующий
+  // свободный. Для редактирования номер уже есть в defaultValues — поле видно.
   number: z
     .number({ invalid_type_error: 'Введите номер' })
     .int('Целое число')
-    .min(1, 'Минимум 1'),
+    .min(1, 'Минимум 1')
+    .optional(),
   size: z
     .number({ invalid_type_error: 'Введите число' })
     .min(0.5, 'Минимум 0.5 м²')
@@ -860,7 +863,7 @@ function UnitFormModal({ open, mode, unit, containers, onClose, onSuccess }: For
         }
       : {
           container_id: 0,
-          number: 1,
+          // number намеренно не задан — поле скрыто и бэк присвоит сам.
           size: 2,
           price: 100,
           status: 'free',
@@ -870,9 +873,9 @@ function UnitFormModal({ open, mode, unit, containers, onClose, onSuccess }: For
   async function onSubmit(values: CreateValues) {
     try {
       if (mode === 'create') {
+        // Номер не отправляем — бэк сам найдёт следующий свободный.
         const payload: CreateUnitPayload = {
           container_id: values.container_id,
-          number: values.number,
           size: values.size,
           price: values.price,
           status: values.status,
@@ -881,7 +884,7 @@ function UnitFormModal({ open, mode, unit, containers, onClose, onSuccess }: For
         onSuccess(saved);
       } else {
         const payload: UpdateUnitPayload = {
-          number: values.number,
+          number: values.number ?? unit!.number,
           size: values.size,
           price: values.price,
           status: values.status,
@@ -916,14 +919,24 @@ function UnitFormModal({ open, mode, unit, containers, onClose, onSuccess }: For
             </Select>
           </Field>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          <Field label="Номер" error={errors.number?.message}>
-            <Input
-              type="number"
-              min={1}
-              {...register('number', { valueAsNumber: true })}
-            />
-          </Field>
+        <div
+          style={{
+            display: 'grid',
+            // При создании номер скрыт (бэк его сам присвоит) — две колонки;
+            // при редактировании номер виден — три.
+            gridTemplateColumns: mode === 'create' ? '1fr 1fr' : '1fr 1fr 1fr',
+            gap: 12,
+          }}
+        >
+          {mode === 'edit' && (
+            <Field label="Номер" error={errors.number?.message}>
+              <Input
+                type="number"
+                min={1}
+                {...register('number', { valueAsNumber: true })}
+              />
+            </Field>
+          )}
           <Field label="Размер, м²" error={errors.size?.message}>
             <Input
               type="number"

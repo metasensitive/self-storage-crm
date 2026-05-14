@@ -26,8 +26,10 @@ class StoreUnitRequest extends FormRequest
     {
         return [
             'container_id' => ['required', 'integer', 'exists:containers,id'],
+            // Номер опционален — если не передан, контроллер сгенерирует
+            // следующий свободный в рамках контейнера (как с кодом контейнера).
             'number' => [
-                'required',
+                'nullable',
                 'integer',
                 'min:1',
                 Rule::unique('units', 'number')->where('container_id', $this->input('container_id'))
@@ -43,7 +45,6 @@ class StoreUnitRequest extends FormRequest
         return [
             'container_id.required' => 'Контейнер обязателен',
             'container_id.exists' => 'Указанный контейнер не существует',
-            'number.required' => 'Номер кладовки обязателен',
             'number.unique' => 'Кладовка с таким номером уже существует в этом контейнере',
             'number.min' => 'Номер должен быть положительным',
             'size.required' => 'Размер обязателен',
