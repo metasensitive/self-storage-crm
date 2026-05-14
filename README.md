@@ -340,13 +340,47 @@ MAIL_PASSWORD=<из_кабинета_mailtrap>
 MAIL_ENCRYPTION=tls
 ```
 
-### Production: Yandex 360 для бизнеса
+### Production (быстрый старт): личный Yandex.Mail
 
-В проде — **Yandex 360 для бизнеса**: почта на свой домен, лучшая доставляемость в `mail.ru`/`yandex.ru`, бесплатный тариф (до 5 ящиков, ~500 писем/сутки на ящик), оплата при расширении в RUB. Для self-storage CRM с типичным объёмом (десятки писем/сутки) free хватает с большим запасом.
+Самый дешёвый и быстрый способ запустить отправку реальных писем — использовать **личный аккаунт на yandex.ru** как SMTP-сервер. Без покупки домена, без DNS, без ожидания распространения записей. Подходит для MVP, демо и ранних альф.
+
+#### Шаги (3 минуты)
+
+1. **Возьмите свой личный Yandex-аккаунт** (или зарегистрируйте новый на yandex.ru).
+2. **Сгенерируйте «пароль приложения»** — на https://id.yandex.ru → «Безопасность» → «Пароли приложений» → создать для «Почта». Это **обязательно**: при включённой 2FA основной пароль аккаунта SMTP не примет.
+3. **Прописать в `backend/.env`** на проде:
+   ```env
+   MAIL_MAILER=smtp
+   MAIL_HOST=smtp.yandex.ru
+   MAIL_PORT=465
+   MAIL_USERNAME=your_login@yandex.ru
+   MAIL_PASSWORD=<пароль_приложения>
+   MAIL_ENCRYPTION=ssl
+   MAIL_FROM_ADDRESS=your_login@yandex.ru
+   MAIL_FROM_NAME="SelfStorage CRM"
+   ```
+4. **Сбросить config-кэш:** `php artisan config:clear` (или `config:cache` если был включён).
+5. **Smoke-тест:**
+   ```bash
+   php artisan tinker
+   >>> Mail::raw('test', fn($m) => $m->to('your_test@gmail.com')->subject('test'));
+   ```
+   Письмо должно прийти.
+
+#### Ограничения
+
+- **Письмо приходит от вашего личного адреса** (`vasya123@yandex.ru`, не `noreply@selfstorage.ru`) — выглядит непрофессионально для сторонних арендаторов. Допустимо для теста MVP, но в нормальном проде лучше домен.
+- **Лимит ~150–500 писем/сутки** на личный ящик. Для CRM на старте (десятки писем/день) — запас огромный. Маркетинговые рассылки сюда не упакуются.
+- **`From` жёстко привязан к адресу ящика.** Менять можно только display name (`MAIL_FROM_NAME`).
+- **Без SPF/DKIM/DMARC доставляемость средняя** — иногда письма с личного ящика на чужой домен попадают в спам. Контроль через папку «Спам» получателя.
+
+### Production (когда появится свой домен): Yandex 360 для бизнеса
+
+Когда CRM выйдет из MVP и захочется отправлять письма с `noreply@yourdomain.ru` — переезд на **Yandex 360 для бизнеса**. Бесплатный тариф (до 5 ящиков, ~500 писем/сутки на ящик), оплата при расширении в RUB. Доставляемость в `mail.ru`/`yandex.ru` — лучшая в РФ.
 
 #### Шаги настройки
 
-1. **Купить домен** (если ещё нет) — `.ru` стоит ~190 ₽/год на REG.ru / Beget / Timeweb. Должен быть подтверждённый владельцем — нужно для DNS-настроек.
+1. **Купить домен** — `.ru` стоит ~190 ₽/год на REG.ru / Beget / Timeweb.
 2. **Подключить домен в Yandex 360 для бизнеса:**
    - Регистрация на https://360.yandex.ru/business/.
    - Раздел «Домены» → Добавить → ввести домен → подтвердить владение через TXT-запись в DNS-настройках регистратора (Yandex даст готовое значение).
@@ -357,25 +391,10 @@ MAIL_ENCRYPTION=tls
    - **DKIM** — публичный ключ из кабинета (Yandex генерирует).
    - **DMARC** — `v=DMARC1; p=quarantine; rua=mailto:postmaster@yourdomain.ru`.
    - DNS-распространение: 1–24 часа.
-5. **Получить «пароль приложения»** — в кабинете Yandex (id.yandex.ru) → «Безопасность» → «Пароли приложений» → создать для «Почта». Это отдельный токен от основного пароля, обязателен при включённой 2FA.
-6. **Прописать в `backend/.env` на проде:**
-   ```env
-   MAIL_MAILER=smtp
-   MAIL_HOST=smtp.yandex.ru
-   MAIL_PORT=465
-   MAIL_USERNAME=noreply@yourdomain.ru
-   MAIL_PASSWORD=<пароль_приложения>
-   MAIL_ENCRYPTION=ssl
-   MAIL_FROM_ADDRESS=noreply@yourdomain.ru
-   MAIL_FROM_NAME="SelfStorage CRM"
-   ```
-7. **Сбросить config-кэш:** `php artisan config:clear` (или `config:cache` если был включён).
-8. **Smoke-тест:**
-   ```bash
-   php artisan tinker
-   >>> Mail::raw('test', fn($m) => $m->to('your_personal@gmail.com')->subject('test'));
-   ```
-   Проверьте, что письмо пришло, не в спам, в заголовках `Authentication-Results` есть `spf=pass`, `dkim=pass`, `dmarc=pass`.
+5. **Получить «пароль приложения»** для ящика на новом домене (как и для личного — на id.yandex.ru).
+6. **Обновить `backend/.env`:** в текущем блоке поменять `MAIL_USERNAME` и `MAIL_FROM_ADDRESS` на `noreply@yourdomain.ru`, `MAIL_PASSWORD` — на новый пароль приложения. Остальные поля без изменений.
+7. **Сбросить config-кэш:** `php artisan config:clear`.
+8. **Тест:** тот же `Mail::raw(...)` через `tinker`. В заголовках `Authentication-Results` теперь должны быть `spf=pass`, `dkim=pass`, `dmarc=pass`.
 
 #### Подводные камни
 
