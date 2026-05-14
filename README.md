@@ -37,7 +37,7 @@
 | **Геокодинг**        | Photon (OpenStreetMap) — autocomplete-сервис от Komoot, без API-ключа |
 | **Real-time**        | Laravel Reverb (WebSocket, Pusher-протокол) + Laravel Echo + pusher-js |
 | **Документация API** | Swagger (Scramble)                                                   |
-| **Тестирование**     | PHPUnit — 26 тестов, 84 assertions                                   |
+| **Тестирование**     | PHPUnit — 30 тестов, 98 assertions                                   |
 
 ---
 
@@ -53,12 +53,13 @@ self-storage-crm/
 │   │   │   ├── Middleware/       # RoleMiddleware, RefreshTokenMetadata
 │   │   │   ├── Requests/         # FormRequest на каждое мутирующее действие
 │   │   │   └── Resources/        # JsonResource для ответов API
-│   │   ├── Events/               # ResourceChanged, ActivityLogCreated
-│   │   │                           (broadcast через Reverb)
+│   │   ├── Events/               # ResourceChanged, ActivityLogCreated,
+│   │   │                           NotificationReceived (broadcast через Reverb)
 │   │   ├── Mail/                 # ResetPasswordMail
 │   │   ├── Models/               # User, Location, Container, Unit, Rent,
 │   │   │   │                       ActivityLog
 │   │   │   └── Concerns/         # LogsActivity (trait для аудит-лога)
+│   │   ├── Notifications/        # RentCreatedNotification (in-app)
 │   │   └── Services/             # RentService, AnalyticsService
 │   ├── database/
 │   │   ├── factories/, migrations/, seeders/
@@ -74,7 +75,8 @@ self-storage-crm/
         │   ├── ui/               # Button, Modal, Drawer, Toast, …
         │   ├── charts/           # KPI, Donut, AreaChart, RevenueChart, …
         │   └── …                 # Sidebar, Topbar, AccountSwitcher,
-        │                           BulkBar (массовые действия), …
+        │                           BulkBar (массовые действия),
+        │                           NotificationBell (in-app колокольчик), …
         ├── contexts/             # AuthContext (с мульти-аккаунтами)
         ├── hooks/                # useTheme, useTweaks
         ├── layouts/              # AppLayout, AuthLayout
@@ -182,6 +184,7 @@ npm run dev
 - **Live-обновления через WebSocket** (Laravel Reverb + Laravel Echo). Любой CRUD по локациям/контейнерам/кладовкам/арендам/сотрудникам автоматически пушится подписчикам через два приватных канала: `admin.activity` (журнал, только админ) и `app.changes` (общий, ресурс+id+action).
 - **DashboardPage** слушает `resource.changed` → инвалидирует кэш аналитики и затронутого ресурса → KPI, графики и списки обновляются без перезагрузки.
 - **ActivityLogPage** слушает `log.created` → мгновенно подтягивает новые записи. 15-сек polling сохранён как fallback на случай, когда Reverb недоступен.
+- **In-app колокольчик** в топбаре (`NotificationBell`) — popover со списком, бейдж непрочитанных, deep-link на объект по клику. Уведомления хранятся в БД через стандартный Laravel `Notification` + database channel; мгновенный push через `NotificationReceived` (ShouldBroadcastNow) на личный канал `App.Models.User.{id}`. Сейчас триггер один — «создана аренда» (рассылается всем сотрудникам кроме создателя); добавление новых типов — это один Notification-класс и одна точка триггера.
 - Авторизация private-каналов — через тот же Sanctum bearer-токен (эндпоинт `/api/broadcasting/auth` обёрнут в `auth:sanctum`). При logout/switch-account Echo пересоединяется под новый токен.
 - Если `VITE_REVERB_APP_KEY` пуст — фронт деградирует к refetch/polling без ошибок.
 
@@ -214,6 +217,7 @@ http://localhost:8000/docs/api
 | **Аренды**          | `/api/v1/rents/*`       | Админ + менеджер                                |
 | **Аналитика**       | `/api/v1/analytics/*`   | Админ + менеджер                                |
 | **Аудит-лог**       | `/api/v1/activity-logs` | Только админ                                    |
+| **Уведомления**     | `/api/v1/notifications/*` | Авторизованные (свои уведомления)             |
 
 ---
 
@@ -238,7 +242,7 @@ cd backend
 php artisan test --testsuite=Feature
 ```
 
-**Результат:** ✅ 26 passed, 84 assertions.
+**Результат:** ✅ 30 passed, 98 assertions.
 
 Покрытие:
 - Аутентификация (login, forgot-password, reset-password)
@@ -247,6 +251,7 @@ php artisan test --testsuite=Feature
 - Аналитика (расчёт сетевой статистики)
 - Аудит-лог (запись created/updated/deleted, фильтр по типу объекта, корректный diff без чувствительных полей)
 - Массовые действия (bulk update статуса, bulk delete с пропуском объектов, имеющих зависимости — активные аренды у кладовок, кладовки у контейнеров)
+- In-app уведомления (рассылка всем кроме создателя, list с unread_count, mark-all-read, защита от гостя)
 
 ---
 
