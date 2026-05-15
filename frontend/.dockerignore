@@ -1,0 +1,26 @@
+node_modules/
+dist/
+dist-ssr/
+.vite/
+
+# Локальные секреты — Railway передаёт VITE_* как build-time ARG.
+.env
+.env.*
+!.env.example
+
+# IDE / git / docker — образу они не нужны.
+.git/
+.github/
+.idea/
+.vscode/
+.claude/
+.fleet/
+.editorconfig
+.gitattributes
+.gitignore
+Dockerfile
+.dockerignore
+
+# Документация — не пакуем в production-образ.
+*.md
+README*
