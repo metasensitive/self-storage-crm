@@ -378,14 +378,10 @@ REVERB_HOST=${{reverb.RAILWAY_PRIVATE_DOMAIN}}
 REVERB_PORT=8080
 REVERB_SCHEME=http
 
-# Email (см. раздел «📧 Email»):
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.yandex.ru
-MAIL_PORT=465
-MAIL_USERNAME=<your_login@yandex.ru>
-MAIL_PASSWORD=<пароль_приложения>
-MAIL_ENCRYPTION=ssl
-MAIL_FROM_ADDRESS=<your_login@yandex.ru>
+# Email через Resend HTTPS-API (см. раздел «📧 Email»):
+MAIL_MAILER=resend
+RESEND_KEY=re_xxxxxxxxxxxxxxxxxx
+MAIL_FROM_ADDRESS=onboarding@resend.dev
 MAIL_FROM_NAME="SelfStorage CRM"
 
 LOG_CHANNEL=stderr
@@ -451,108 +447,60 @@ Healthcheck API: `https://<api>.up.railway.app/up` → должен отдать
 
 ## 📧 Email
 
-Транзакционные письма (сброс пароля, временный пароль для нового сотрудника) отправляются через Laravel `Mail` / `Notifications` — обычный SMTP. Шаблоны лежат в `backend/resources/views/emails/`.
+Транзакционные письма (сброс пароля, временный пароль для нового сотрудника) отправляются через Laravel `Mail` / `Notifications`. Шаблоны лежат в `backend/resources/views/emails/`.
 
-### Dev: Mailtrap
+Провайдер — **[Resend](https://resend.com/)** через HTTPS-API (не SMTP). Это сознательный выбор: PaaS-платформы (Railway, Heroku, Fly.io) часто блокируют исходящий SMTP egress, и Yandex/Gmail/Mailgun-SMTP с них не работают. API-провайдеры ходят через обычный HTTPS и работают откуда угодно.
 
-В локальной разработке используется **Mailtrap** — почтовая «ловушка», письма не уходят реальным адресатам, а лежат в личном inbox на `mailtrap.io`. Удобно проверять верстку и содержимое без риска зацепить чьи-то ящики.
+Бесплатный тариф Resend — **3 000 писем / месяц, 100 / сутки**. Для CRM с десятком сотрудников хватит с большим запасом.
 
-Регистрация: https://mailtrap.io/ → создать inbox → скопировать SMTP-креды в `backend/.env`:
+### Быстрый старт (5 минут)
 
-```env
-MAIL_MAILER=smtp
-MAIL_HOST=sandbox.smtp.mailtrap.io
-MAIL_PORT=2525
-MAIL_USERNAME=<из_кабинета_mailtrap>
-MAIL_PASSWORD=<из_кабинета_mailtrap>
-MAIL_ENCRYPTION=tls
-```
-
-### Production (быстрый старт): личный Yandex.Mail
-
-Самый дешёвый и быстрый способ запустить отправку реальных писем — использовать **личный аккаунт на yandex.ru / yandex.com** как SMTP-сервер. Без покупки домена, без DNS, без ожидания распространения записей. Подходит для MVP, демо и ранних альф.
-
-#### Шаги (5 минут)
-
-1. **Возьмите свой личный Yandex-аккаунт** (или зарегистрируйте новый).
-
-2. **Включите доступ через почтовый клиент** — это **критичный шаг**, который Yandex держит выключенным по умолчанию. Без него SMTP вернёт `535 5.7.8 ... user does not have access rights to this service`, даже если пароль приложения корректен.
-   - Зайти в https://mail.yandex.ru/ (или `mail.yandex.com`).
-   - Шестерёнка (настройки) → **«Все настройки»** → **«Почтовые программы»**.
-   - Включить чекбоксы:
-     - ✅ **«С сервера imap.yandex.ru по протоколу IMAP»**.
-     - ✅ **«Пароли приложений и OAuth-токены»**.
-   - Сохранить.
-
-3. **Сгенерируйте «пароль приложения»** — на https://id.yandex.ru → «Безопасность» → «Пароли приложений» → создать для **«Почта»**. Скопировать показанный пароль (показывается **один раз**, потом восстановить нельзя — только пересоздать).
-
-4. **Прописать в `backend/.env`** на проде. Хост зависит от домена ящика:
-   - `@yandex.ru` / `@ya.ru` → `MAIL_HOST=smtp.yandex.ru`.
-   - `@yandex.com` → `MAIL_HOST=smtp.yandex.com` (можно и `.ru`, но `.com` надёжнее для международных аккаунтов).
+1. **Регистрация** на https://resend.com/ через GitHub-аккаунт.
+2. **API-ключ:** `Dashboard → API Keys → Create API Key`. Имя любое (например `selfstorage-prod`), permissions `Sending access` достаточно. Ключ покажется **один раз** в формате `re_xxxxxxxxxx` — сохрани сразу.
+3. **`backend/.env`** (локально) и Railway → Variables (api-сервис):
    ```env
-   MAIL_MAILER=smtp
-   MAIL_HOST=smtp.yandex.ru   # или smtp.yandex.com для @yandex.com
-   MAIL_PORT=465
-   MAIL_USERNAME=your_login@yandex.ru
-   MAIL_PASSWORD=<пароль_приложения_без_пробелов>
-   MAIL_ENCRYPTION=ssl
-   MAIL_FROM_ADDRESS=your_login@yandex.ru
+   MAIL_MAILER=resend
+   RESEND_KEY=re_xxxxxxxxxxxxxxxxxx
+   MAIL_FROM_ADDRESS=onboarding@resend.dev
    MAIL_FROM_NAME="SelfStorage CRM"
    ```
-   `MAIL_FROM_ADDRESS` **должен совпадать с MAIL_USERNAME** — Yandex не разрешит отправлять от чужого имени с личного ящика.
-
-5. **Сбросить config-кэш:** `php artisan config:clear` (или `config:cache` если был включён).
-
-6. **Smoke-тест:**
+4. **Smoke-тест** (локально):
    ```bash
    php artisan tinker
    >>> Mail::raw('test', fn($m) => $m->to('your_test@gmail.com')->subject('test'));
    ```
-   Письмо должно прийти.
+   На проде — просто `/forgot-password` на своём email.
 
-#### Если получаете `535 5.7.8 ... access rights to this service`
+`onboarding@resend.dev` — это **sandbox-адрес**. Письма с него уходят **только на email, под которым ты регистрировался в Resend** (защита от использования sandbox для рассылок). Достаточно для дипломного демо: ревьюер видит сброс пароля админу — ты сам и есть админ.
 
-Это ровно та проблема — IMAP/SMTP-доступ выключен в настройках ящика. Вернитесь к **шагу 2** и проверьте чекбоксы в «Почтовые программы». После сохранения настройки иногда применяются ~30 сек.
+### Production-режим — со своим доменом
 
-#### Если получаете `535 5.7.8 ... Invalid user or password`
+Когда захочешь отправлять с `noreply@yourdomain.io` любым получателям, нужна **верификация домена в Resend** (~30 минут + DNS-распространение).
 
-Пароль приложения скопирован с пробелами или испорчен. Перегенерируйте на id.yandex.ru, **не основной пароль аккаунта**.
+1. **`Dashboard → Domains → Add Domain`** → ввести `yourdomain.io`.
+2. Resend покажет **набор DNS-записей** (SPF, DKIM, иногда DMARC):
+   - `MX` — `feedback-smtp.<region>.amazonses.com`
+   - `TXT` (SPF) — `v=spf1 include:amazonses.com ~all`
+   - `TXT` (DKIM) — три записи с публичными ключами от Resend
+   - (опционально) `TXT` (DMARC) — `v=DMARC1; p=none; rua=mailto:dmarc@yourdomain.io`
+3. **Прописать эти записи** у регистратора домена. DNS-распространение: 5 минут – 24 часа.
+4. **Дождись зелёного статуса** "Verified" в Resend.
+5. **В `.env` / Railway Variables** заменить:
+   ```env
+   MAIL_FROM_ADDRESS=noreply@yourdomain.io
+   ```
+6. Готово — письма уходят кому угодно с твоего домена, проходят SPF/DKIM-проверки, не попадают в спам.
 
-#### Ограничения
+### Dev-альтернатива: Mailtrap (опционально)
 
-- **Письмо приходит от вашего личного адреса** (`vasya123@yandex.ru`, не `noreply@selfstorage.ru`) — выглядит непрофессионально для сторонних арендаторов. Допустимо для теста MVP, но в нормальном проде лучше домен.
-- **Лимит ~150–500 писем/сутки** на личный ящик. Для CRM на старте (десятки писем/день) — запас огромный. Маркетинговые рассылки сюда не упакуются.
-- **`From` жёстко привязан к адресу ящика.** Менять можно только display name (`MAIL_FROM_NAME`).
-- **Без SPF/DKIM/DMARC доставляемость средняя** — иногда письма с личного ящика на чужой домен попадают в спам. Контроль через папку «Спам» получателя.
+Если не хочешь жечь Resend-квоту на локальные тесты — поставь в `backend/.env` Mailtrap (sandbox), письма лягут в личный inbox на mailtrap.io. Креды берёшь там же. Закомментированный блок есть в `backend/.env.example`.
 
-### Production (когда появится свой домен): Yandex 360 для бизнеса
+### Подводные камни
 
-Когда CRM выйдет из MVP и захочется отправлять письма с `noreply@yourdomain.ru` — переезд на **Yandex 360 для бизнеса**. Бесплатный тариф (до 5 ящиков, ~500 писем/сутки на ящик), оплата при расширении в RUB. Доставляемость в `mail.ru`/`yandex.ru` — лучшая в РФ.
-
-#### Шаги настройки
-
-1. **Купить домен** — `.ru` стоит ~190 ₽/год на REG.ru / Beget / Timeweb.
-2. **Подключить домен в Yandex 360 для бизнеса:**
-   - Регистрация на https://360.yandex.ru/business/.
-   - Раздел «Домены» → Добавить → ввести домен → подтвердить владение через TXT-запись в DNS-настройках регистратора (Yandex даст готовое значение).
-3. **Создать ящик** — обычно `noreply@yourdomain.ru` (для отправки) или `info@yourdomain.ru` (если хотите получать ответы).
-4. **Прописать DNS-записи доставляемости** (Yandex показывает готовые в кабинете — копируете в DNS у регистратора):
-   - **MX** — приёмник почты (нужен даже если получать не планируете — без MX другие провайдеры считают домен «дохлым»).
-   - **SPF** — `v=spf1 redirect=_spf.yandex.net` — авторизует Yandex отправлять от вашего имени.
-   - **DKIM** — публичный ключ из кабинета (Yandex генерирует).
-   - **DMARC** — `v=DMARC1; p=quarantine; rua=mailto:postmaster@yourdomain.ru`.
-   - DNS-распространение: 1–24 часа.
-5. **Получить «пароль приложения»** для ящика на новом домене (как и для личного — на id.yandex.ru).
-6. **Обновить `backend/.env`:** в текущем блоке поменять `MAIL_USERNAME` и `MAIL_FROM_ADDRESS` на `noreply@yourdomain.ru`, `MAIL_PASSWORD` — на новый пароль приложения. Остальные поля без изменений.
-7. **Сбросить config-кэш:** `php artisan config:clear`.
-8. **Тест:** тот же `Mail::raw(...)` через `tinker`. В заголовках `Authentication-Results` теперь должны быть `spf=pass`, `dkim=pass`, `dmarc=pass`.
-
-#### Подводные камни
-
-- **DNS не распространился** — первые ~1–24 ч после добавления записей письма могут уходить в спам. Проверка через `dig TXT yourdomain.ru` / https://mxtoolbox.com.
-- **Лимит 500/сутки на ящик** — для маркетинговых рассылок мало, для CRM-транзакций с большим запасом. Если упрётесь — заводите второй ящик или переходите на платный тариф / UniSender Go.
-- **Mail.ru изредка фильтрует** домены без правильного DMARC. Поэтому DMARC-запись обязательна, не опциональна.
-- **`MAIL_PORT=587` с `tls`** тоже работает (STARTTLS) — если 465 в инфраструктуре заблокирован, попробуйте 587.
+- **`From` не верифицирован** → Resend вернёт 403. Можно слать только с `onboarding@resend.dev` или с верифицированного домена.
+- **Sandbox-адрес шлёт только владельцу аккаунта** → если хочется отправить кому-то ещё в режиме демо, либо добавь его email в Resend → "Audience" (для transactional не нужно), либо верифицируй домен.
+- **Письма могут падать в спам у Gmail без DMARC** на твоём домене — добавь DMARC-запись (см. пункт 2 выше).
+- **`RESEND_KEY` не должен лететь в git** — он лежит только в env-переменных. Если случайно закоммитил — пересоздай в Resend Dashboard, старый ключ автоматически инвалидируется.
 
 ---
 
@@ -573,8 +521,8 @@ MAIL_ENCRYPTION=tls
 
 Бэкенд возвращает `200 OK` независимо от существования email — это намеренно для защиты от перебора учёток.
 
-- **В dev** — проверьте Mailtrap-креды в `backend/.env` (см. раздел «📧 Email → Dev»). Письма копятся в Inbox в кабинете mailtrap.io.
-- **В прод** — проверьте по очереди: (1) DNS-записи распространились (`dig TXT yourdomain.ru`), (2) `MAIL_PASSWORD` это **пароль приложения**, а не основной пароль ящика, (3) лог Laravel (`storage/logs/laravel.log`) — Yandex SMTP при отказе пишет понятную ошибку (`535 Login failure`, `554 5.7.1 Spam` и т.п.).
+- **В dev (Mailtrap)** — проверьте sandbox-креды в `backend/.env`. Письма копятся в Inbox в кабинете mailtrap.io, не уходят реальным адресатам.
+- **В dev / prod (Resend)** — проверьте по очереди: (1) `RESEND_KEY` валиден и не отозван (в кабинете resend.com → API Keys); (2) `MAIL_FROM_ADDRESS` — это либо `onboarding@resend.dev` (sandbox, шлёт **только владельцу аккаунта Resend**), либо адрес на **верифицированном** домене (см. «Production-режим» в разделе «📧 Email»); (3) логи api в Railway / `storage/logs/laravel.log` локально — Resend при отказе возвращает понятный JSON-error (например `422 You can only send testing emails to your own email address`).
 
 ---
 
