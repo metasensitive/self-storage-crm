@@ -24,7 +24,10 @@ RUN composer install \
         --no-progress
 
 # ─────────────────────────────── 2. Runtime PHP ────────────────────────────────────
-FROM php:8.3-cli-bookworm AS runtime
+# Версия PHP должна соответствовать минимальной из composer.lock. Текущий лок
+# подтянул symfony 8.x (clock/console/error-handler/...), которые требуют
+# php >= 8.4 — поэтому используем 8.4, хотя composer.json пишет ^8.3.
+FROM php:8.4-cli-bookworm AS runtime
 
 # Системные библиотеки для PHP-расширений + утилиты, которые понадобятся
 # в runtime (git нужен composer-у для autoload, postgresql-client удобен
