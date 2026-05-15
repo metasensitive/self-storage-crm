@@ -6,6 +6,8 @@ use App\Events\ActivityLogCreated;
 use App\Events\ResourceChanged;
 use App\Models\ActivityLog;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Подмешивает модели запись в `activity_logs` на eloquent-события
@@ -69,10 +71,23 @@ trait LogsActivity
             \App\Models\User::class => 'user',
         ];
         $resource = $resourceMap[get_class($model)] ?? null;
-        if ($resource) {
-            broadcast(new ResourceChanged($resource, $model->getKey(), $action))->toOthers();
+
+        // Broadcast — best-effort. Если reverb недоступен (рестарт сервиса,
+        // сетевой глюк, неверный REVERB_HOST), мы не должны ронять http-ответ
+        // — БД-запись уже создана, фронт подтянет данные через polling/refetch.
+        try {
+            if ($resource) {
+                broadcast(new ResourceChanged($resource, $model->getKey(), $action))->toOthers();
+            }
+            broadcast(new ActivityLogCreated($log->id))->toOthers();
+        } catch (Throwable $e) {
+            Log::warning('broadcast activity event failed', [
+                'resource' => $resource,
+                'model_id' => $model->getKey(),
+                'action' => $action,
+                'error' => $e->getMessage(),
+            ]);
         }
-        broadcast(new ActivityLogCreated($log->id))->toOthers();
     }
 
     protected static function buildChanges(Model $model, string $action): ?array
