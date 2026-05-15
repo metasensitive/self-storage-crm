@@ -30,7 +30,7 @@
 
 | Часть                | Технологии                                                          |
 | -------------------- | ------------------------------------------------------------------- |
-| **Backend**          | PHP 8.3+, Laravel 13, PostgreSQL, Sanctum                            |
+| **Backend**          | PHP 8.4+, Laravel 13, PostgreSQL, Sanctum                            |
 | **Frontend**         | Vite, React 18, TypeScript, React Router v6                          |
 | **Серверное состояние** | TanStack Query v5 + Axios                                         |
 | **Формы**            | React Hook Form + Zod                                                |
@@ -38,7 +38,7 @@
 | **Геокодинг**        | Photon (OpenStreetMap) — autocomplete-сервис от Komoot, без API-ключа |
 | **Real-time**        | Laravel Reverb (WebSocket, Pusher-протокол) + Laravel Echo + pusher-js |
 | **Документация API** | Swagger (Scramble)                                                   |
-| **Тестирование**     | PHPUnit — 35 тестов, 112 assertions                                  |
+| **Тестирование**     | PHPUnit — 33 теста (Feature + Unit)                                  |
 
 ---
 
@@ -242,7 +242,7 @@ cd backend
 php artisan test --testsuite=Feature
 ```
 
-**Результат:** ✅ 35 passed, 112 assertions.
+**Результат:** ✅ 33 теста проходят.
 
 Покрытие:
 - Аутентификация (login, forgot-password, reset-password)
@@ -285,6 +285,11 @@ php artisan test --testsuite=Feature
 ---
 
 ## 🏗 Production-сборка
+
+> Текущий деплой проекта идёт на **Railway через Docker** (см. следующий раздел) —
+> там `Dockerfile` сам ставит зависимости, кеширует конфиги, прогоняет миграции
+> и сидер. Команды ниже актуальны, если хочется собрать руками — например, для
+> деплоя на VPS / nginx.
 
 ### Frontend
 
@@ -335,6 +340,12 @@ php artisan migrate --force
 Все три кодовых сервиса (api/reverb/frontend) подключаются к **одному GitHub-репо**;
 различаются только параметром Root Directory (`backend/` или `frontend/`) и
 кастомной start-командой у `reverb` (см. ниже).
+
+> **⚠️ Ссылки `${{service.RAILWAY_PUBLIC_DOMAIN}}`** между сервисами в Railway
+> резолвятся ненадёжно — особенно когда сервис создаётся после того, как
+> переменная уже сохранена в другом. Если в Variables видишь пустое значение
+> (или хвост `https://` без домена) — **впиши литералы**, конкретные домены
+> сервисов после `Generate Domain`. Это надёжнее и для демо подходит.
 
 ### Минимальный набор переменных окружения
 
@@ -414,20 +425,25 @@ VITE_REVERB_SCHEME=https
 
 1. **Создать проект** в Railway, привязать к GitHub-репо.
 2. Добавить **Postgres-плагин** из marketplace.
-3. Добавить три сервиса из того же репо. Для каждого указать Root Directory:
-   - `backend` для `api` и `reverb`,
-   - `frontend` для `frontend`.
-4. Для `reverb` в Settings → Start Command подставить `./docker/start-reverb.sh`.
-5. Заполнить env-переменные по списку выше. На все сервисы — **Generate Domain** в Settings → Networking.
-6. Railway сам пересоберёт и задеплоит. API в release-фазе сам прогонит миграции и `storage:link`.
+3. Добавить три сервиса из того же репо. Для каждого указать в Settings:
+   - Builder → **Dockerfile** (по умолчанию Railway ставит Railpack).
+   - Root Directory: `backend` для `api` и `reverb`, `frontend` для `frontend`.
+   - Watch Paths: `backend/**` или `frontend/**` (чтобы не пересобирался от чужих изменений в монорепо).
+4. Для `reverb` в Settings → **Custom Start Command** подставить `./docker/start-reverb.sh`.
+5. Для каждого сервиса — **Generate Domain** в Settings → Networking, порт `8080`.
+6. **Сгенерировать одноразовые секреты:**
+   - `APP_KEY` — локально: `cd backend && php artisan key:generate --show`. Скопировать **одинаковое** значение в `api` и `reverb`.
+   - `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` — три случайные строки (например `openssl rand -hex 16`). **Одинаковые** значения в `api` и `reverb`; `REVERB_APP_KEY` дополнительно идёт в `frontend` как `VITE_REVERB_APP_KEY`.
+7. Заполнить env-переменные по таблицам выше для каждого сервиса. У `api` healthcheck path — `/up`.
+8. Railway сам пересоберёт и задеплоит. На каждом релизе `release.sh` у `api` сам прогоняет миграции, `storage:link`, идемпотентный `db:seed`, и кеширует config/route/event.
 
 ### Проверка
 
 После деплоя открыть `https://<frontend>.up.railway.app/`:
-- логин `admin@example.com` / `password` (создаётся сидером);
-- дашборд должен показать KPI и графики;
-- создание локации/контейнера должно появиться в журнале действий;
-- в двух вкладках одновременно проверить, что live-обновления долетают (Reverb).
+- логин `admin@example.com` / `password` (или `manager@example.com` / `password`);
+- дашборд должен показать KPI и графики на основе демо-данных: 2 локации, 4 контейнера, 32 кладовки и 11 аренд в разных статусах;
+- создание новой локации/контейнера должно появиться в журнале действий через ~1 сек;
+- в двух вкладках одновременно (одна в инкогнито) проверить, что live-обновления долетают через Reverb.
 
 Healthcheck API: `https://<api>.up.railway.app/up` → должен отдать `200`.
 
