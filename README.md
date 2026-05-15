@@ -380,7 +380,7 @@ REVERB_SCHEME=http
 
 # Email через Resend HTTPS-API (см. раздел «📧 Email»):
 MAIL_MAILER=resend
-RESEND_KEY=re_xxxxxxxxxxxxxxxxxx
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxx
 MAIL_FROM_ADDRESS=onboarding@resend.dev
 MAIL_FROM_NAME="SelfStorage CRM"
 
@@ -460,7 +460,7 @@ Healthcheck API: `https://<api>.up.railway.app/up` → должен отдать
 3. **`backend/.env`** (локально) и Railway → Variables (api-сервис):
    ```env
    MAIL_MAILER=resend
-   RESEND_KEY=re_xxxxxxxxxxxxxxxxxx
+   RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxx
    MAIL_FROM_ADDRESS=onboarding@resend.dev
    MAIL_FROM_NAME="SelfStorage CRM"
    ```
@@ -500,7 +500,7 @@ Healthcheck API: `https://<api>.up.railway.app/up` → должен отдать
 - **`From` не верифицирован** → Resend вернёт 403. Можно слать только с `onboarding@resend.dev` или с верифицированного домена.
 - **Sandbox-адрес шлёт только владельцу аккаунта** → если хочется отправить кому-то ещё в режиме демо, либо добавь его email в Resend → "Audience" (для transactional не нужно), либо верифицируй домен.
 - **Письма могут падать в спам у Gmail без DMARC** на твоём домене — добавь DMARC-запись (см. пункт 2 выше).
-- **`RESEND_KEY` не должен лететь в git** — он лежит только в env-переменных. Если случайно закоммитил — пересоздай в Resend Dashboard, старый ключ автоматически инвалидируется.
+- **`RESEND_API_KEY` не должен лететь в git** — он лежит только в env-переменных. Если случайно закоммитил — пересоздай в Resend Dashboard, старый ключ автоматически инвалидируется.
 
 ---
 
@@ -522,7 +522,7 @@ Healthcheck API: `https://<api>.up.railway.app/up` → должен отдать
 Бэкенд возвращает `200 OK` независимо от существования email — это намеренно для защиты от перебора учёток.
 
 - **В dev (Mailtrap)** — проверьте sandbox-креды в `backend/.env`. Письма копятся в Inbox в кабинете mailtrap.io, не уходят реальным адресатам.
-- **В dev / prod (Resend)** — проверьте по очереди: (1) `RESEND_KEY` валиден и не отозван (в кабинете resend.com → API Keys); (2) `MAIL_FROM_ADDRESS` — это либо `onboarding@resend.dev` (sandbox, шлёт **только владельцу аккаунта Resend**), либо адрес на **верифицированном** домене (см. «Production-режим» в разделе «📧 Email»); (3) логи api в Railway / `storage/logs/laravel.log` локально — Resend при отказе возвращает понятный JSON-error (например `422 You can only send testing emails to your own email address`).
+- **В dev / prod (Resend)** — проверьте по очереди: (1) `RESEND_API_KEY` валиден и не отозван (в кабинете resend.com → API Keys); (2) `MAIL_FROM_ADDRESS` — это либо `onboarding@resend.dev` (sandbox, шлёт **только владельцу аккаунта Resend**), либо адрес на **верифицированном** домене (см. «Production-режим» в разделе «📧 Email»); (3) логи api в Railway / `storage/logs/laravel.log` локально — Resend при отказе возвращает понятный JSON-error (например `422 You can only send testing emails to your own email address`).
 
 ---
 
