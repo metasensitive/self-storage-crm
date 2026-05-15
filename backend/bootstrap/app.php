@@ -19,6 +19,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ['prefix' => 'api', 'middleware' => ['auth:sanctum']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Railway (и любой PaaS с reverse-proxy перед приложением) проксирует
+        // запросы из внешнего https внутрь контейнера по http. Без явного
+        // доверия к прокси Laravel генерирует ссылки с http:// и ломает
+        // sanctum-cookie с Secure-флагом. Доверяем всем прокси-IP — мы знаем,
+        // что снаружи стоит платформа.
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
            'role' => \App\Http\Middleware\RoleMiddleware::class
         ]);

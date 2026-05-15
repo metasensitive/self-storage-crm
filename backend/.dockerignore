@@ -1,0 +1,36 @@
+# Артефакты разработки и зависимости — composer install прогоняется внутри билда.
+vendor/
+node_modules/
+
+# Локальные секреты — Railway инжектит env-переменные на рантайме.
+.env
+.env.*
+!.env.example
+
+# Кеши Laravel и PHPUnit.
+bootstrap/cache/*.php
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/public/avatars/*
+.phpunit.result.cache
+.phpunit.cache/
+
+# IDE / git / docker / тесты-агрегаторы — образу они не нужны.
+.git/
+.github/
+.idea/
+.vscode/
+.claude/
+.fleet/
+.editorconfig
+.gitattributes
+.gitignore
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Документация — не пакуем в production-образ.
+*.md
+README*

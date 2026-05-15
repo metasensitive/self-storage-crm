@@ -20,6 +20,7 @@
 - [Тесты](#-тесты)
 - [Бизнес-правила](#-бизнес-правила)
 - [Production-сборка](#-production-сборка)
+- [Деплой на Railway](#-деплой-на-railway)
 - [Решение типовых проблем](#-решение-типовых-проблем)
 - [Автор](#-автор)
 
@@ -317,6 +318,118 @@ php artisan migrate --force
 ```
 
 Дополнительно для real-time: `php artisan reverb:start` должен крутиться как отдельный сервис (systemd / supervisor / pm2), nginx проксирует `/app/*` и `wss://app.example.com` на порт Reverb с TLS-терминацией. На фронте — `VITE_REVERB_SCHEME=https` и `VITE_REVERB_PORT=443`.
+
+---
+
+## 🚂 Деплой на Railway
+
+Демо-стенд поднимается на [Railway](https://railway.app) одним проектом с четырьмя сервисами:
+
+| Сервис      | Что это                                | Источник            | Порт        |
+|-------------|----------------------------------------|---------------------|-------------|
+| `postgres`  | Managed Postgres-плагин Railway        | плагин из marketplace | 5432       |
+| `api`       | Laravel REST API                       | `backend/Dockerfile`  | `$PORT`    |
+| `reverb`    | WebSocket-сервер (тот же образ)        | `backend/Dockerfile`  | `$PORT`    |
+| `frontend`  | React SPA + nginx                      | `frontend/Dockerfile` | `$PORT`    |
+
+Все три кодовых сервиса (api/reverb/frontend) подключаются к **одному GitHub-репо**;
+различаются только параметром Root Directory (`backend/` или `frontend/`) и
+кастомной start-командой у `reverb` (см. ниже).
+
+### Минимальный набор переменных окружения
+
+**`api`-сервис:**
+
+```env
+APP_NAME=SelfStorage CRM
+APP_ENV=production
+APP_KEY=<сгенерировать локально: cd backend && php artisan key:generate --show>
+APP_DEBUG=false
+APP_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}
+
+# Подключение к Postgres-плагину одной строкой:
+DB_CONNECTION=pgsql
+DB_URL=${{Postgres.DATABASE_URL}}
+DB_SSLMODE=require
+
+# Адрес фронта (нужен для CORS и для ссылок в письмах сброса пароля):
+FRONTEND_URL=https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}
+
+# Sanctum: разрешённые stateful-домены (без https://):
+SANCTUM_STATEFUL_DOMAINS=${{frontend.RAILWAY_PUBLIC_DOMAIN}}
+
+# Broadcasting через Reverb. HOST смотрит на reverb-сервис по приватной сети:
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=<любая_рандомная_строка_123>
+REVERB_APP_KEY=<любая_рандомная_строка_456>
+REVERB_APP_SECRET=<любая_рандомная_строка_789>
+REVERB_HOST=${{reverb.RAILWAY_PRIVATE_DOMAIN}}
+REVERB_PORT=8080
+REVERB_SCHEME=http
+
+# Email (см. раздел «📧 Email»):
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.yandex.ru
+MAIL_PORT=465
+MAIL_USERNAME=<your_login@yandex.ru>
+MAIL_PASSWORD=<пароль_приложения>
+MAIL_ENCRYPTION=ssl
+MAIL_FROM_ADDRESS=<your_login@yandex.ru>
+MAIL_FROM_NAME="SelfStorage CRM"
+
+LOG_CHANNEL=stderr
+```
+
+**`reverb`-сервис** (тот же codebase, но другая стартовая команда):
+
+```env
+APP_KEY=<тот_же_что_у_api>
+DB_URL=${{Postgres.DATABASE_URL}}
+DB_SSLMODE=require
+REVERB_APP_ID=<тот_же_что_у_api>
+REVERB_APP_KEY=<тот_же_что_у_api>
+REVERB_APP_SECRET=<тот_же_что_у_api>
+REVERB_SERVER_HOST=0.0.0.0
+REVERB_SERVER_PORT=${{PORT}}
+LOG_CHANNEL=stderr
+```
+
+В Railway → service settings → **Start Command:**
+
+```bash
+./docker/start-reverb.sh
+```
+
+**`frontend`-сервис** (build-time переменные — Vite встраивает их в бандл):
+
+```env
+VITE_API_URL=https://${{api.RAILWAY_PUBLIC_DOMAIN}}
+VITE_REVERB_APP_KEY=<тот_же_что_REVERB_APP_KEY_у_api>
+VITE_REVERB_HOST=${{reverb.RAILWAY_PUBLIC_DOMAIN}}
+VITE_REVERB_PORT=443
+VITE_REVERB_SCHEME=https
+```
+
+### Порядок поднятия
+
+1. **Создать проект** в Railway, привязать к GitHub-репо.
+2. Добавить **Postgres-плагин** из marketplace.
+3. Добавить три сервиса из того же репо. Для каждого указать Root Directory:
+   - `backend` для `api` и `reverb`,
+   - `frontend` для `frontend`.
+4. Для `reverb` в Settings → Start Command подставить `./docker/start-reverb.sh`.
+5. Заполнить env-переменные по списку выше. На все сервисы — **Generate Domain** в Settings → Networking.
+6. Railway сам пересоберёт и задеплоит. API в release-фазе сам прогонит миграции и `storage:link`.
+
+### Проверка
+
+После деплоя открыть `https://<frontend>.up.railway.app/`:
+- логин `admin@example.com` / `password` (создаётся сидером);
+- дашборд должен показать KPI и графики;
+- создание локации/контейнера должно появиться в журнале действий;
+- в двух вкладках одновременно проверить, что live-обновления долетают (Reverb).
+
+Healthcheck API: `https://<api>.up.railway.app/up` → должен отдать `200`.
 
 ---
 
