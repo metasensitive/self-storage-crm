@@ -16,16 +16,10 @@ php artisan migrate --force
 echo "▶ release: storage:link"
 php artisan storage:link --force || true
 
-# Сидируем демо-данные, но только если в таблице users никого нет —
-# DatabaseSeeder делает User::create() без проверки, поэтому повторный
-# запуск упал бы на unique-индексе email.
-USER_COUNT=$(php artisan tinker --execute='echo \App\Models\User::count();' 2>/dev/null | tail -n1 | tr -d '[:space:]')
-if [ "$USER_COUNT" = "0" ]; then
-    echo "▶ release: seeding demo data (users table is empty)"
-    php artisan db:seed --force
-else
-    echo "▶ release: skipping seed (found $USER_COUNT users — already seeded)"
-fi
+# Сидер идемпотентный (users через firstOrCreate, остальное — только
+# если locations пуст), безопасно вызывать на каждом деплое.
+echo "▶ release: db:seed --force"
+php artisan db:seed --force
 
 echo "▶ release: cache config/routes/events for production"
 php artisan config:cache
