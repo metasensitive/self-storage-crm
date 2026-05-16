@@ -100,7 +100,7 @@ class SupportTicketController extends Controller
         $status = $request->string('status')->toString();
         $ticket = $status === SupportTicket::STATUS_CLOSED
             ? $this->support->closeTicket($ticket, $request->user())
-            : $this->support->reopenTicket($ticket);
+            : $this->support->reopenTicket($ticket, $request->user());
 
         $ticket->load(['manager:id,name,email,role,avatar']);
 

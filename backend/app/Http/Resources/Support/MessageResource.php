@@ -13,6 +13,7 @@ class MessageResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'type' => $this->type ?? 'message',
             // Если сообщение soft-deleted — тело не отдаём.
             'body' => $isDeleted ? null : $this->body,
             'is_deleted' => $isDeleted,
