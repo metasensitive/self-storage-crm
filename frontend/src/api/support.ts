@@ -38,8 +38,11 @@ export interface SupportMessageRead {
   read_at: string | null;
 }
 
+export type SupportMessageType = 'message' | 'system_closed' | 'system_reopened';
+
 export interface SupportMessage {
   id: number;
+  type: SupportMessageType;
   body: string | null;
   is_deleted: boolean;
   author?: SupportTicketUser;
