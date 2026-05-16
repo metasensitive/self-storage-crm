@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { supportApi, type SupportMessage } from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
+import { initials } from '@/lib/format';
+import type { Role } from '@/api/types';
 import { AttachmentPreview } from './AttachmentPreview';
+import { authorDisplayName } from './utils';
 
 /** Окно редактирования совпадает с бэкенд-настройкой 10 мин. */
 const EDIT_WINDOW_MIN = 10;
@@ -16,6 +19,7 @@ const EDIT_WINDOW_MIN = 10;
 interface MessageBubbleProps {
   message: SupportMessage;
   currentUserId: number;
+  viewerRole: Role | null;
   ticketId: number;
   authToken: string | null;
   /** Сообщение прочитано хотя бы одним получателем (для двойной галочки). */
@@ -29,6 +33,7 @@ function timeOf(iso: string) {
 export function MessageBubble({
   message,
   currentUserId,
+  viewerRole,
   ticketId,
   authToken,
   hasReadByOther,
@@ -72,6 +77,14 @@ export function MessageBubble({
   });
 
   const role = message.author?.role;
+  // Для менеджера маскируем имя любого админа как «Администратор» — он не
+  // должен видеть, сколько людей в саппорте и кто именно отвечает. Аватар
+  // тоже маскируем: показываем инициал «А» вместо реального аватара.
+  const displayedName = authorDisplayName(message.author, viewerRole) ?? 'Аноним';
+  const maskAdmin = viewerRole === 'manager' && role === 'admin';
+  const avatarSrc = maskAdmin ? null : message.author?.avatar_url;
+  const avatarName = maskAdmin ? 'Администратор' : message.author?.name;
+  void initials; // используется в Avatar
 
   // Цвета бабла: свои — акцентом, чужие — нейтральные. У админа лёгкий
   // визуальный маркер ролью (только для чужих сообщений админа).
@@ -96,12 +109,12 @@ export function MessageBubble({
         alignItems: 'flex-end',
       }}
     >
-      {!isMine && <Avatar name={message.author?.name} src={message.author?.avatar_url} />}
+      {!isMine && <Avatar name={avatarName} src={avatarSrc} />}
 
       <div style={{ maxWidth: '70%', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {!isMine && (
           <div className="t-small dim" style={{ paddingLeft: 4 }}>
-            {message.author?.name ?? 'Аноним'}
+            {displayedName}
             {role === 'admin' && (
               <span
                 style={{
