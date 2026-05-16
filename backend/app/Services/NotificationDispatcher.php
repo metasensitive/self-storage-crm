@@ -24,6 +24,35 @@ class NotificationDispatcher
     public static function toAllStaff(Notification $notification): void
     {
         $recipients = User::query()->get();
+        self::send($recipients, $notification);
+    }
+
+    /**
+     * Адресная рассылка — список конкретных пользователей. Применяется в чате
+     * поддержки: менеджер пишет → шлём всем админам; админ отвечает →
+     * шлём только владельцу тикета.
+     *
+     * @param iterable<User> $users
+     */
+    public static function toUsers(iterable $users, Notification $notification): void
+    {
+        $collection = collect($users)->filter()->unique('id')->values();
+        self::send($collection, $notification);
+    }
+
+    /** Только админам. */
+    public static function toAdmins(Notification $notification): void
+    {
+        $recipients = User::query()->where('role', User::ROLE_ADMIN)->get();
+        self::send($recipients, $notification);
+    }
+
+    /**
+     * Общая отправка: пишет в БД через database channel + бросает
+     * NotificationReceived best-effort на личный канал каждого получателя.
+     */
+    private static function send($recipients, Notification $notification): void
+    {
         if ($recipients->isEmpty()) {
             return;
         }

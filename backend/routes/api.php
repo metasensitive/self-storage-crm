@@ -11,6 +11,10 @@ use App\Http\Controllers\RentController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Support\SupportTicketController;
+use App\Http\Controllers\Support\SupportMessageController;
+use App\Http\Controllers\Support\SupportSearchController;
+use App\Http\Controllers\Support\SupportAttachmentController;
 
 /*
 | API Routes v1
@@ -50,6 +54,38 @@ Route::prefix('v1')->group(function () {
             Route::get('/sessions', [ProfileController::class, 'sessions']);
             Route::delete('/sessions', [ProfileController::class, 'revokeOtherSessions']);
             Route::delete('/sessions/{id}', [ProfileController::class, 'revokeSession']);
+        });
+
+        // Поддержка (чат админа ↔ менеджера).
+        // Чтение и переписка — обе роли; создание тикета — только менеджер
+        // (см. отдельный POST ниже под role:manager).
+        Route::middleware('role:admin,manager')->prefix('support')->group(function () {
+            // Общий счётчик непрочитанных — для бейджа сайдбара.
+            Route::get('unread-count', [SupportTicketController::class, 'unreadCount']);
+
+            // Тикеты
+            Route::get('tickets', [SupportTicketController::class, 'index']);
+            Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
+            Route::patch('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
+            Route::post('tickets/{ticket}/read', [SupportTicketController::class, 'markRead']);
+
+            // Сообщения тикета
+            Route::get('tickets/{ticket}/messages', [SupportMessageController::class, 'index']);
+            Route::post('tickets/{ticket}/messages', [SupportMessageController::class, 'store']);
+            Route::patch('messages/{message}', [SupportMessageController::class, 'update']);
+            Route::delete('messages/{message}', [SupportMessageController::class, 'destroy']);
+
+            // Поиск по сообщениям
+            Route::get('search', SupportSearchController::class);
+
+            // Скачивание вложений
+            Route::get('attachments/{attachment}/download', [SupportAttachmentController::class, 'download'])
+                ->name('support.attachments.download');
+        });
+
+        // Создание тикета — только менеджер (admin не заводит чат от своего имени).
+        Route::middleware('role:manager')->prefix('support')->group(function () {
+            Route::post('tickets', [SupportTicketController::class, 'store']);
         });
 
         // роль: админ + менеджер
