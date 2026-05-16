@@ -93,14 +93,22 @@ export default function SupportPage() {
   return (
     <>
       <Topbar crumbs={['Поддержка']} />
+      {/*
+        Чат должен иметь фиксированную высоту с внутренним скроллом — лента
+        сообщений не должна растягивать страницу. .main у нас flex column
+        внутри grid (.app min-height 100vh), поэтому самый надёжный способ —
+        привязать высоту контейнера к viewport минус приблизительная высота
+        топбара (~65px: padding 14×2 + контент 36 + border 1).
+      */}
       <div
-        className="content"
+        className="support-shell"
         style={{
           display: 'flex',
           flexDirection: 'column',
           padding: 0,
+          height: 'calc(100vh - 65px)',
           minHeight: 0,
-          flex: 1,
+          overflow: 'hidden',
         }}
       >
         <div

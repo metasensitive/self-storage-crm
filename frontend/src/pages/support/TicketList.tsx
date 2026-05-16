@@ -123,9 +123,15 @@ export function TicketList({ tickets, selectedId, onSelect, showManager }: Ticke
                   alignItems: 'flex-end',
                   gap: 4,
                   flexShrink: 0,
+                  // Фиксированная ширина колонки времени — иначе при сменах
+                  // «только что → 2 мин → 6 ч → 2 дн» правый край съезжает
+                  // и тема скачет по ширине. min-width делает выравнивание
+                  // вертикально-ровным.
+                  minWidth: 52,
+                  textAlign: 'right',
                 }}
               >
-                <span className="t-small dim">
+                <span className="t-small dim" style={{ whiteSpace: 'nowrap' }}>
                   {relTime(t.last_message_at ?? t.created_at)}
                 </span>
                 {t.unread_count > 0 && (
