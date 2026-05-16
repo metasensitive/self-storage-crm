@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Textarea } from '@/components/ui/Input';
 import { Button, IconButton } from '@/components/ui/Button';
@@ -149,50 +149,17 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
       }}
     >
       {files.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginBottom: 10,
+            alignItems: 'flex-start',
+          }}
+        >
           {files.map((f, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 8px',
-                background: 'var(--bg)',
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--r-md)',
-                fontSize: 12,
-              }}
-            >
-              <span style={{ color: attachmentIconColor(f.type, f.name), display: 'flex' }}>
-                <Ic name={attachmentIcon(f.type, f.name)} size={14} />
-              </span>
-              <span
-                style={{
-                  maxWidth: 180,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-                title={f.name}
-              >
-                {f.name}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeFile(i)}
-                aria-label="Удалить"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 2,
-                  display: 'flex',
-                }}
-              >
-                <Ic name="close" size={12} />
-              </button>
-            </div>
+            <PendingAttachment key={i} file={f} onRemove={() => removeFile(i)} />
           ))}
         </div>
       )}
@@ -232,6 +199,168 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
           Отправить
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Превью одного выбранного вложения до отправки.
+ *
+ * Картинки рендерятся миниатюрой 64×64 через object-URL самого File
+ * (не дёргаем сеть — файл уже на клиенте). При наведении всплывает крупное
+ * превью оригинала рядом с миниатюрой. Кнопка ✕ удаляет из списка.
+ *
+ * Не-картинки — компактный чип с цветной иконкой по типу файла и именем.
+ */
+function PendingAttachment({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const isImage = file.type.startsWith('image/');
+  const [src, setSrc] = useState<string | null>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (!isImage) return;
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, isImage]);
+
+  if (isImage) {
+    return (
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{ position: 'relative' }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 'var(--r-md)',
+            overflow: 'hidden',
+            border: '1px solid var(--line)',
+            background: 'var(--bg-muted)',
+            position: 'relative',
+          }}
+          title={file.name}
+        >
+          {src ? (
+            <img
+              src={src}
+              alt={file.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ic name="image" size={18} />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Удалить"
+            style={{
+              position: 'absolute',
+              top: 2,
+              right: 2,
+              width: 18,
+              height: 18,
+              borderRadius: 999,
+              background: 'rgba(0, 0, 0, 0.6)',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+            }}
+          >
+            <Ic name="close" size={10} />
+          </button>
+        </div>
+
+        {hovered && src && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              bottom: 'calc(100% + 8px)',
+              background: 'var(--bg-elev)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-md)',
+              boxShadow: 'var(--shadow-3, 0 12px 32px rgba(0,0,0,0.25))',
+              padding: 4,
+              zIndex: 50,
+              pointerEvents: 'none',
+            }}
+          >
+            <img
+              src={src}
+              alt={file.name}
+              style={{
+                display: 'block',
+                maxWidth: 420,
+                maxHeight: 320,
+                objectFit: 'contain',
+                borderRadius: 'var(--r-sm)',
+              }}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '6px 10px',
+        background: 'var(--bg)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--r-md)',
+        fontSize: 12,
+        height: 32,
+      }}
+      title={file.name}
+    >
+      <span style={{ color: attachmentIconColor(file.type, file.name), display: 'flex' }}>
+        <Ic name={attachmentIcon(file.type, file.name)} size={14} />
+      </span>
+      <span
+        style={{
+          maxWidth: 180,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {file.name}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Удалить"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 2,
+          display: 'flex',
+        }}
+      >
+        <Ic name="close" size={12} />
+      </button>
     </div>
   );
 }

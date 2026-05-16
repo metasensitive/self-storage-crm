@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Ic } from '@/components/Ic';
 import type { SupportAttachment } from '@/api/support';
 import { attachmentIcon, attachmentIconColor } from './utils';
+// HoverZoom переехал в Composer — для уже отправленных сообщений достаточно
+// клика по миниатюре, который открывает lightbox. Hover-зум в ленте мешал
+// читать переписку (всплывал поверх соседних сообщений).
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} Б`;
@@ -34,7 +37,6 @@ interface AttachmentPreviewProps {
  */
 export function AttachmentPreview({ attachment, authToken }: AttachmentPreviewProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [hovered, setHovered] = useState(false);
 
   async function downloadFile() {
     const blob = await fetchAuthedBlob(attachment.download_url, authToken);
@@ -52,68 +54,51 @@ export function AttachmentPreview({ attachment, authToken }: AttachmentPreviewPr
   if (attachment.is_image) {
     return (
       <>
-        <div
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          style={{ position: 'relative', display: 'inline-block', maxWidth: 280 }}
+        <button
+          type="button"
+          onClick={() => setLightboxOpen(true)}
+          title="Открыть в полном размере"
+          style={{
+            padding: 0,
+            background: 'transparent',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r-md)',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            maxWidth: 280,
+            display: 'block',
+            width: '100%',
+          }}
         >
-          <button
-            type="button"
-            onClick={() => setLightboxOpen(true)}
-            title="Открыть в полном размере"
+          <AuthedImage
+            url={attachment.download_url}
+            alt={attachment.original_name}
+            authToken={authToken}
+            maxHeight={200}
+          />
+          <div
+            className="t-small dim"
             style={{
-              padding: 0,
-              background: 'transparent',
-              border: '1px solid var(--line)',
-              borderRadius: 'var(--r-md)',
-              overflow: 'hidden',
-              cursor: 'pointer',
-              maxWidth: 280,
-              display: 'block',
-              width: '100%',
+              padding: '6px 10px',
+              background: 'var(--bg)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 8,
             }}
           >
-            <AuthedImage
-              url={attachment.download_url}
-              alt={attachment.original_name}
-              authToken={authToken}
-              maxHeight={200}
-            />
-            <div
-              className="t-small dim"
+            <span
               style={{
-                padding: '6px 10px',
-                background: 'var(--bg)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 8,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                flex: 1,
               }}
             >
-              <span
-                style={{
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  flex: 1,
-                }}
-              >
-                {attachment.original_name}
-              </span>
-              <span>{fmtSize(attachment.size_bytes)}</span>
-            </div>
-          </button>
-
-          {/* Hover-зум: всплывающее увеличенное превью рядом с миниатюрой.
-              Срабатывает только если есть достаточно места — иначе lightbox
-              остаётся единственным способом увидеть деталь. */}
-          {hovered && (
-            <HoverZoom
-              url={attachment.download_url}
-              alt={attachment.original_name}
-              authToken={authToken}
-            />
-          )}
-        </div>
+              {attachment.original_name}
+            </span>
+            <span>{fmtSize(attachment.size_bytes)}</span>
+          </div>
+        </button>
 
         {lightboxOpen && (
           <Lightbox
@@ -410,64 +395,3 @@ function LightboxImage({
   );
 }
 
-/**
- * Hover-зум: всплывает рядом с миниатюрой большое превью полного изображения.
- * Привязан к курсору viewport — позиционируется absolute от родителя миниатюры.
- */
-function HoverZoom({
-  url,
-  alt,
-  authToken,
-}: {
-  url: string;
-  alt: string;
-  authToken: string | null;
-}) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    fetchAuthedBlob(url, authToken).then((blob) => {
-      if (!blob || cancelled) return;
-      objectUrl = URL.createObjectURL(blob);
-      setSrc(objectUrl);
-    });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [url, authToken]);
-
-  if (!src) return null;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: '100%',
-        top: 0,
-        marginLeft: 12,
-        background: 'var(--bg-elev)',
-        border: '1px solid var(--line)',
-        borderRadius: 'var(--r-md)',
-        boxShadow: 'var(--shadow-3, 0 12px 32px rgba(0,0,0,0.25))',
-        padding: 4,
-        zIndex: 50,
-        pointerEvents: 'none',
-      }}
-    >
-      <img
-        src={src}
-        alt={alt}
-        style={{
-          display: 'block',
-          maxWidth: 480,
-          maxHeight: 360,
-          objectFit: 'contain',
-          borderRadius: 'var(--r-sm)',
-        }}
-      />
-    </div>
-  );
-}
