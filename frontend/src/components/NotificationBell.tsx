@@ -63,6 +63,11 @@ function describe(n: AppNotification, currentUserId?: number): string {
       code ? ` в ${code}` : ''
     }`;
   }
+  if (n.type === 'support.message') {
+    const sender = (n.data.sender_name as string | undefined) ?? 'Сотрудник';
+    const subject = (n.data.subject as string | undefined) ?? '';
+    return `${sender}: новое сообщение в тикете «${subject}»`;
+  }
   return 'Новое событие';
 }
 
@@ -78,6 +83,9 @@ function deepLink(n: AppNotification): string | null {
   }
   if (n.type === 'unit.created' && typeof n.data.unit_id === 'number') {
     return `/units?open=${n.data.unit_id}`;
+  }
+  if (n.type === 'support.message' && typeof n.data.ticket_id === 'number') {
+    return `/support?open=${n.data.ticket_id}`;
   }
   return null;
 }
