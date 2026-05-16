@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Ic } from '@/components/Ic';
 import type { SupportAttachment } from '@/api/support';
+import { attachmentIcon, attachmentIconColor } from './utils';
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} Б`;
@@ -21,13 +22,21 @@ interface AttachmentPreviewProps {
 }
 
 /**
- * Превью вложения в баббле сообщения. Изображения — через blob-URL,
- * полученный fetch'ом с Authorization (download_url требует auth:sanctum,
- * простой <img src=...> без хедера получит 401). Остальные — карточка
- * с иконкой и кнопкой «Скачать».
+ * Превью вложения в баббле сообщения.
+ *
+ * Изображения — миниатюра в баббле + lightbox-оверлей по клику и hover-зум
+ * (большое окно поверх ленты при наведении). Файлы прочих типов — карточка
+ * с цветной иконкой по mime и кнопкой «скачать».
+ *
+ * Endpoint download требует auth:sanctum, поэтому простой <img src> без
+ * Authorization-хедера получит 401 — тянем blob через fetch с Bearer и
+ * подставляем через object-URL.
  */
 export function AttachmentPreview({ attachment, authToken }: AttachmentPreviewProps) {
-  const handleDownload = async () => {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  async function downloadFile() {
     const blob = await fetchAuthedBlob(attachment.download_url, authToken);
     if (!blob) return;
     const url = URL.createObjectURL(blob);
@@ -38,75 +47,122 @@ export function AttachmentPreview({ attachment, authToken }: AttachmentPreviewPr
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
+  }
 
   if (attachment.is_image) {
     return (
-      <button
-        type="button"
-        onClick={handleDownload}
-        title="Скачать"
-        style={{
-          padding: 0,
-          background: 'transparent',
-          border: '1px solid var(--line)',
-          borderRadius: 'var(--r-md)',
-          overflow: 'hidden',
-          cursor: 'pointer',
-          maxWidth: 280,
-        }}
-      >
-        <AuthedImage
-          url={attachment.download_url}
-          alt={attachment.original_name}
-          authToken={authToken}
-        />
+      <>
         <div
-          className="t-small dim"
-          style={{
-            padding: '6px 10px',
-            background: 'var(--bg)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{ position: 'relative', display: 'inline-block', maxWidth: 280 }}
         >
-          <span
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            title="Открыть в полном размере"
             style={{
-              whiteSpace: 'nowrap',
+              padding: 0,
+              background: 'transparent',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-md)',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              flex: 1,
+              cursor: 'pointer',
+              maxWidth: 280,
+              display: 'block',
+              width: '100%',
             }}
           >
-            {attachment.original_name}
-          </span>
-          <span>{fmtSize(attachment.size_bytes)}</span>
+            <AuthedImage
+              url={attachment.download_url}
+              alt={attachment.original_name}
+              authToken={authToken}
+              maxHeight={200}
+            />
+            <div
+              className="t-small dim"
+              style={{
+                padding: '6px 10px',
+                background: 'var(--bg)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}
+            >
+              <span
+                style={{
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flex: 1,
+                }}
+              >
+                {attachment.original_name}
+              </span>
+              <span>{fmtSize(attachment.size_bytes)}</span>
+            </div>
+          </button>
+
+          {/* Hover-зум: всплывающее увеличенное превью рядом с миниатюрой.
+              Срабатывает только если есть достаточно места — иначе lightbox
+              остаётся единственным способом увидеть деталь. */}
+          {hovered && (
+            <HoverZoom
+              url={attachment.download_url}
+              alt={attachment.original_name}
+              authToken={authToken}
+            />
+          )}
         </div>
-      </button>
+
+        {lightboxOpen && (
+          <Lightbox
+            url={attachment.download_url}
+            name={attachment.original_name}
+            authToken={authToken}
+            onClose={() => setLightboxOpen(false)}
+            onDownload={downloadFile}
+          />
+        )}
+      </>
     );
   }
 
+  // Не-изображение: карточка с типизированной иконкой.
   return (
     <button
       type="button"
-      onClick={handleDownload}
+      onClick={downloadFile}
       title="Скачать"
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 12,
         padding: '10px 12px',
         background: 'var(--bg)',
         border: '1px solid var(--line)',
         borderRadius: 'var(--r-md)',
         cursor: 'pointer',
         textAlign: 'left',
-        minWidth: 220,
+        minWidth: 240,
         maxWidth: 320,
       }}
     >
-      <Ic name="file" size={18} />
+      <span
+        style={{
+          color: attachmentIconColor(attachment.mime, attachment.original_name),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 32,
+          height: 32,
+          background: 'var(--bg-muted)',
+          borderRadius: 'var(--r-md)',
+          flexShrink: 0,
+        }}
+      >
+        <Ic name={attachmentIcon(attachment.mime, attachment.original_name)} size={18} />
+      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           className="t-body"
@@ -118,14 +174,200 @@ export function AttachmentPreview({ attachment, authToken }: AttachmentPreviewPr
         >
           {attachment.original_name}
         </div>
-        <div className="t-small dim">{fmtSize(attachment.size_bytes)}</div>
+        <div className="t-small dim">
+          {fmtSize(attachment.size_bytes)}
+          {attachment.mime && (
+            <span style={{ marginLeft: 6, opacity: 0.7 }}>
+              · {attachment.mime.split('/').pop()}
+            </span>
+          )}
+        </div>
       </div>
       <Ic name="download" size={14} />
     </button>
   );
 }
 
+/** Авторизованная картинка через blob-URL. */
 function AuthedImage({
+  url,
+  alt,
+  authToken,
+  maxHeight = 320,
+}: {
+  url: string;
+  alt: string;
+  authToken: string | null;
+  maxHeight?: number;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    fetchAuthedBlob(url, authToken).then((blob) => {
+      if (!blob || cancelled) return;
+      objectUrl = URL.createObjectURL(blob);
+      setSrc(objectUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, authToken]);
+
+  if (!src) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: 180,
+          background: 'var(--bg-muted)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Ic name="image" size={20} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      style={{
+        display: 'block',
+        width: '100%',
+        maxHeight,
+        objectFit: 'cover',
+      }}
+    />
+  );
+}
+
+/**
+ * Полноэкранный lightbox с overlay-фоном. Закрывается по клику на фон,
+ * Escape, или кнопкой ✕. Внутри — кнопка скачивания.
+ */
+function Lightbox({
+  url,
+  name,
+  authToken,
+  onClose,
+  onDownload,
+}: {
+  url: string;
+  name: string;
+  authToken: string | null;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-label={`Просмотр: ${name}`}
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.85)',
+        zIndex: 200,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'zoom-out',
+      }}
+    >
+      <header
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,.5), transparent)',
+          color: 'white',
+        }}
+      >
+        <span
+          style={{
+            flex: 1,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          title={name}
+        >
+          {name}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDownload();
+          }}
+          title="Скачать"
+          style={{
+            background: 'rgba(255,255,255,.12)',
+            border: '1px solid rgba(255,255,255,.2)',
+            color: 'white',
+            padding: '6px 10px',
+            borderRadius: 'var(--r-md)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <Ic name="download" size={14} />
+          <span style={{ fontSize: 13 }}>Скачать</span>
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Закрыть"
+          style={{
+            background: 'rgba(255,255,255,.12)',
+            border: '1px solid rgba(255,255,255,.2)',
+            color: 'white',
+            width: 32,
+            height: 32,
+            borderRadius: 'var(--r-md)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ic name="close" size={16} />
+        </button>
+      </header>
+
+      <LightboxImage url={url} alt={name} authToken={authToken} />
+    </div>
+  );
+}
+
+function LightboxImage({
   url,
   alt,
   authToken,
@@ -151,27 +393,81 @@ function AuthedImage({
   }, [url, authToken]);
 
   if (!src) {
-    return (
-      <div
-        style={{
-          width: 280,
-          height: 180,
-          background: 'var(--bg-muted)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Ic name="image" size={20} />
-      </div>
-    );
+    return <div style={{ color: 'white' }}>Загрузка…</div>;
   }
-
   return (
     <img
       src={src}
       alt={alt}
-      style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover' }}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        maxWidth: '92vw',
+        maxHeight: '88vh',
+        objectFit: 'contain',
+        cursor: 'default',
+      }}
     />
+  );
+}
+
+/**
+ * Hover-зум: всплывает рядом с миниатюрой большое превью полного изображения.
+ * Привязан к курсору viewport — позиционируется absolute от родителя миниатюры.
+ */
+function HoverZoom({
+  url,
+  alt,
+  authToken,
+}: {
+  url: string;
+  alt: string;
+  authToken: string | null;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    fetchAuthedBlob(url, authToken).then((blob) => {
+      if (!blob || cancelled) return;
+      objectUrl = URL.createObjectURL(blob);
+      setSrc(objectUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, authToken]);
+
+  if (!src) return null;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: '100%',
+        top: 0,
+        marginLeft: 12,
+        background: 'var(--bg-elev)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--r-md)',
+        boxShadow: 'var(--shadow-3, 0 12px 32px rgba(0,0,0,0.25))',
+        padding: 4,
+        zIndex: 50,
+        pointerEvents: 'none',
+      }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        style={{
+          display: 'block',
+          maxWidth: 480,
+          maxHeight: 360,
+          objectFit: 'contain',
+          borderRadius: 'var(--r-sm)',
+        }}
+      />
+    </div>
   );
 }

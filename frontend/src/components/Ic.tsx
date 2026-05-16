@@ -44,8 +44,13 @@ export type IconName =
   | 'lock'
   | 'image'
   | 'file'
+  | 'file-pdf'
+  | 'file-doc'
+  | 'file-xls'
+  | 'file-txt'
   | 'reopen'
   | 'check_double'
+  | 'expand'
   | 'dot';
 
 interface IcProps {
@@ -314,6 +319,40 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M14 2v6h6" />
     </>
   ),
+  'file-pdf': (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M9 13h1.5a1.5 1.5 0 0 1 0 3H9z" />
+      <path d="M14 16v-3h2" />
+      <path d="M14 14.5h1.5" />
+    </>
+  ),
+  'file-doc': (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M9 13h1a1.5 1.5 0 0 1 1.5 1.5v.5a1.5 1.5 0 0 1-1.5 1.5H9z" />
+      <path d="M14 13h1a1.5 1.5 0 0 1 1.5 1.5v.5a1.5 1.5 0 0 1-1.5 1.5H14z" />
+    </>
+  ),
+  'file-xls': (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="m9 13 2.5 3.5" />
+      <path d="m11.5 13-2.5 3.5" />
+      <path d="M14 13v3.5h2" />
+    </>
+  ),
+  'file-txt': (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h4" />
+      <path d="M10 13v3.5" />
+    </>
+  ),
   reopen: (
     <>
       <path d="M3 12a9 9 0 1 0 3-6.7" />
@@ -324,6 +363,14 @@ const PATHS: Record<IconName, ReactElement> = {
     <>
       <path d="m2 12 5 5 9-12" />
       <path d="m8 17 4 4 9-12" />
+    </>
+  ),
+  expand: (
+    <>
+      <path d="M15 3h6v6" />
+      <path d="M9 21H3v-6" />
+      <path d="m21 3-7 7" />
+      <path d="m3 21 7-7" />
     </>
   ),
   dot: <circle cx="12" cy="12" r="2.5" fill="currentColor" />,

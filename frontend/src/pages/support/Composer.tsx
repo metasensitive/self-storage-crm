@@ -6,6 +6,7 @@ import { Ic } from '@/components/Ic';
 import { useToast } from '@/components/ui/Toast';
 import { supportApi } from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
+import { attachmentIcon, attachmentIconColor } from './utils';
 
 const MAX_FILES = 5;
 const MAX_KB = 10240;
@@ -83,6 +84,34 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
     }
   }
 
+  /**
+   * Paste из буфера. Если в clipboard есть image (например, скриншот
+   * через Win+Shift+S или PrintScreen) — добавляем как файл-вложение.
+   * Простой текст оставляем стандартному behavior textarea.
+   */
+  function onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const pasted: File[] = [];
+    for (const it of items) {
+      if (it.kind === 'file' && it.type.startsWith('image/')) {
+        const file = it.getAsFile();
+        if (file) {
+          // Дадим понятное имя — clipboard-картинки обычно безымянные.
+          const ext = file.type.split('/')[1] ?? 'png';
+          const named = new File([file], `screenshot-${Date.now()}.${ext}`, {
+            type: file.type,
+          });
+          pasted.push(named);
+        }
+      }
+    }
+    if (pasted.length > 0) {
+      e.preventDefault();
+      addFiles(pasted);
+    }
+  }
+
   if (disabled) {
     return (
       <div
@@ -135,7 +164,9 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
                 fontSize: 12,
               }}
             >
-              <Ic name={f.type.startsWith('image/') ? 'image' : 'file'} size={12} />
+              <span style={{ color: attachmentIconColor(f.type, f.name), display: 'flex' }}>
+                <Ic name={attachmentIcon(f.type, f.name)} size={14} />
+              </span>
               <span
                 style={{
                   maxWidth: 180,
@@ -186,7 +217,8 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Напишите сообщение… (Ctrl+Enter — отправить)"
+          onPaste={onPaste}
+          placeholder="Напишите сообщение… (Ctrl+Enter — отправить, Ctrl+V — вставить скриншот)"
           rows={Math.min(6, Math.max(1, body.split('\n').length))}
           style={{ flex: 1, resize: 'none' }}
         />
