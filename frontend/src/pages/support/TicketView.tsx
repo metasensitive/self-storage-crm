@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -8,12 +8,12 @@ import { Ic } from '@/components/Ic';
 import { supportApi, type SupportMessage, type SupportTicket } from '@/api/support';
 import { getToken } from '@/api/client';
 import { queryKeys } from '@/lib/queryKeys';
-import { fmtDateTime } from '@/lib/format';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupportTicketChannel } from '@/hooks/useSupportTicketChannel';
 import { MessageBubble } from './MessageBubble';
 import { SystemMessage } from './SystemMessage';
 import { Composer } from './Composer';
+import { fmtDateTimeLocal } from './time';
 
 interface TicketViewProps {
   ticket: SupportTicket;
@@ -23,6 +23,17 @@ interface TicketViewProps {
 }
 
 type StatusAction = 'close' | 'reopen' | null;
+
+/**
+ * Память скролла по тикетам. Живёт в модуле (не в state), чтобы пережить
+ * перемонтирование TicketView при свитче между тикетами. Хранит scrollTop
+ * последней позиции ленты; при открытии тикета восстанавливаем — иначе
+ * пользователю каждый раз сбрасывает в начало.
+ *
+ * Очищать после logout не нужно: при свитче аккаунта компонент
+ * перерендеривается с новыми ticket.id-ами, а Map содержит безопасные числа.
+ */
+const scrollPositions = new Map<number, number>();
 
 export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketViewProps) {
   const qc = useQueryClient();
@@ -45,35 +56,95 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
   });
 
   const messages = messagesQ.data?.data ?? [];
-  const hasUnreadForMe = useMemo(
+
+  // Список ID непрочитанных сообщений. Используем join как стабильный
+  // dep для useEffect — он меняется при любом сдвиге набора (приход нового
+  // сообщения, прочтение части и т. п.).
+  const unreadIdsKey = useMemo(
     () =>
-      messages.some(
-        (m: SupportMessage) =>
-          !m.is_deleted &&
-          m.type === 'message' &&
-          m.author?.id !== currentUserId &&
-          !m.read_by.some((r) => r.user_id === currentUserId),
-      ),
+      messages
+        .filter(
+          (m: SupportMessage) =>
+            !m.is_deleted &&
+            m.type === 'message' &&
+            m.author?.id !== currentUserId &&
+            !m.read_by.some((r) => r.user_id === currentUserId),
+        )
+        .map((m) => m.id)
+        .join(','),
     [messages, currentUserId],
   );
 
+  // mark-read срабатывает на ЛЮБОЕ изменение набора непрочитанных, а не
+  // только на переход «нет → есть». Если новые сообщения долетают по
+  // ws в уже открытом тикете, набор unread меняется (новый id появляется
+  // в строке) → effect отрабатывает → бэк отметит и эти.
   useEffect(() => {
-    if (hasUnreadForMe && !markReadMut.isPending) markReadMut.mutate();
+    if (unreadIdsKey.length > 0 && !markReadMut.isPending) {
+      markReadMut.mutate();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasUnreadForMe]);
+  }, [unreadIdsKey]);
 
-  // Авто-скролл к низу при появлении новых сообщений, если пользователь
-  // уже был у дна (допуск 200 px); иначе не дёргаем его наверх.
-  const lastIdRef = useRef<number | null>(null);
+  // ──────── Память скролла ────────
+
+  // Сбрасываем «уже восстановлен» при смене тикета — нужно произвести
+  // восстановление заново для нового ticket.id.
+  const restoredRef = useRef(false);
+  useLayoutEffect(() => {
+    restoredRef.current = false;
+  }, [ticket.id]);
+
+  // Восстановление позиции. Срабатывает один раз после того, как messagesQ
+  // отдал первые данные — иначе scrollHeight ещё 0 и scrollTop некуда ставить.
+  // Если для тикета сохранённой позиции нет — отправляем к низу (newest).
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el || restoredRef.current || messagesQ.isLoading) return;
+    const saved = scrollPositions.get(ticket.id);
+    if (saved !== undefined && saved > 0) {
+      el.scrollTop = saved;
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+    restoredRef.current = true;
+  }, [ticket.id, messagesQ.isLoading, messages.length]);
+
+  // Сохранение позиции на scroll, с rAF-троттлингом — не пишем в Map
+  // на каждый wheel-event, пишем раз в кадр.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    let raf: number | null = null;
+    const ticketId = ticket.id;
+    const onScroll = () => {
+      if (raf !== null) return;
+      raf = requestAnimationFrame(() => {
+        scrollPositions.set(ticketId, el.scrollTop);
+        raf = null;
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [ticket.id]);
+
+  // Авто-скролл к низу при новых сообщениях — только если пользователь уже
+  // был внизу (допуск 200 px) и инициальное восстановление уже произошло.
+  const lastIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !restoredRef.current) return;
     const newest = messages[0]?.id ?? null;
     if (newest === lastIdRef.current) return;
     lastIdRef.current = newest;
     const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 200;
     if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // ──────── Прочее ────────
 
   const statusMut = useMutation({
     mutationFn: (next: 'open' | 'closed') => supportApi.tickets.updateStatus(ticket.id, next),
@@ -120,11 +191,11 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
           >
             {ticket.manager?.name && <span>{ticket.manager.name}</span>}
             <span title="Создан">
-              <Ic name="calendar" size={11} /> {fmtDateTime(ticket.created_at)}
+              <Ic name="calendar" size={11} /> {fmtDateTimeLocal(ticket.created_at)}
             </span>
             {ticket.is_closed && ticket.closed_at && (
               <span title="Закрыт" style={{ color: 'var(--ink-2)' }}>
-                <Ic name="lock" size={11} /> закрыт {fmtDateTime(ticket.closed_at)}
+                <Ic name="lock" size={11} /> закрыт {fmtDateTimeLocal(ticket.closed_at)}
               </span>
             )}
           </div>
@@ -201,8 +272,6 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
         disabledHint="Тикет закрыт — отправка недоступна"
       />
 
-      {/* Подтверждение закрытия / переоткрытия — собственная модалка вместо
-          браузерного confirm: тема, тёмная-светлая, единый стиль с проектом. */}
       <Modal
         open={statusModal !== null}
         onClose={() => !statusMut.isPending && setStatusModal(null)}

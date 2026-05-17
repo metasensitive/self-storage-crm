@@ -361,8 +361,8 @@ const PATHS: Record<IconName, ReactElement> = {
   ),
   check_double: (
     <>
-      <path d="m2 12 5 5 9-12" />
-      <path d="m8 17 4 4 9-12" />
+      <path d="m18 6-11 11-5-5" />
+      <path d="m18 13-7 7-5-5" />
     </>
   ),
   expand: (

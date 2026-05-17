@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import dayjs from 'dayjs';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/ui/Avatar';
 import { Ic } from '@/components/Ic';
@@ -12,6 +11,7 @@ import { initials } from '@/lib/format';
 import type { Role } from '@/api/types';
 import { AttachmentPreview } from './AttachmentPreview';
 import { authorDisplayName } from './utils';
+import { fmtTime } from './time';
 
 /** Окно редактирования совпадает с бэкенд-настройкой 10 мин. */
 const EDIT_WINDOW_MIN = 10;
@@ -26,9 +26,7 @@ interface MessageBubbleProps {
   hasReadByOther: boolean;
 }
 
-function timeOf(iso: string) {
-  return dayjs(iso).format('HH:mm');
-}
+// Время бабла рендерим через fmtTime (Intl, локальный TZ браузера).
 
 export function MessageBubble({
   message,
@@ -45,7 +43,10 @@ export function MessageBubble({
 
   const isMine = message.author?.id === currentUserId;
   const isDeleted = message.is_deleted;
-  const ageMin = dayjs().diff(dayjs(message.created_at), 'minute');
+  const ageMin = (() => {
+    const d = new Date(message.created_at);
+    return Number.isNaN(d.getTime()) ? Infinity : (Date.now() - d.getTime()) / 60_000;
+  })();
   const canEdit = isMine && !isDeleted && ageMin < EDIT_WINDOW_MIN;
 
   // Если редактирование открыто и окно прошло — закрыть.
@@ -213,7 +214,7 @@ export function MessageBubble({
           }}
         >
           {message.edited_at && !isDeleted && <span title="Изменено">(изменено)</span>}
-          <span>{timeOf(message.created_at)}</span>
+          <span>{fmtTime(message.created_at)}</span>
           {isMine && !isDeleted && (
             <Ic
               name={hasReadByOther ? 'check_double' : 'check'}

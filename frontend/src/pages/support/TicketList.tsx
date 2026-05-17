@@ -1,41 +1,16 @@
-import dayjs from 'dayjs';
 import { Avatar } from '@/components/ui/Avatar';
 import { Ic } from '@/components/Ic';
 import type { SupportTicket } from '@/api/support';
+import { fmtTicketListTime } from './time';
 
 interface TicketListProps {
   tickets: SupportTicket[];
   selectedId: number | null;
   onSelect: (id: number) => void;
-  /** Показывать имя менеджера в строке (для админа). */
+  /** Показывать аватар менеджера в строке (для админа). */
   showManager: boolean;
   /** Нужен чтобы понять, чьё последнее сообщение — для check/check_double. */
   currentUserId: number;
-}
-
-/**
- * Telegram-style формат времени последнего сообщения в карточке тикета:
- * - сегодня → «14:32»
- * - вчера → «вчера»
- * - в пределах недели → короткое название дня недели на русском (пн, вт, …)
- * - в этом году → «17 мая»
- * - старше → «17 мая 2025»
- *
- * Раньше тут было relTime («6 ч» и т. п.) — короче, но менее очевидно для
- * пользователя, особенно когда сообщение было «4 часа назад в 02:00» —
- * абсолютное время понятнее.
- */
-function lastMessageTime(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = dayjs(iso);
-  if (!d.isValid()) return '';
-  const now = dayjs();
-  const dayDiff = now.startOf('day').diff(d.startOf('day'), 'day');
-  if (dayDiff === 0) return d.format('HH:mm');
-  if (dayDiff === 1) return 'вчера';
-  if (dayDiff < 7) return d.format('dd');
-  if (d.year() === now.year()) return d.format('D MMM');
-  return d.format('D MMM YYYY');
 }
 
 export function TicketList({
@@ -63,9 +38,8 @@ export function TicketList({
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       {tickets.map((t) => {
         const active = t.id === selectedId;
-        // Индикатор прочтения показываем только если последнее сообщение в
-        // тикете — обычное (не системное) и принадлежит текущему пользователю.
-        // Чужое последнее сообщение → индикатор скрыт (как в Telegram).
+        // Индикатор прочтения показываем только если последнее сообщение —
+        // обычное (не системное) и принадлежит текущему пользователю.
         const lm = t.last_message;
         const showReceipt =
           lm && lm.type === 'message' && lm.author_id === currentUserId;
@@ -95,132 +69,117 @@ export function TicketList({
               </div>
             )}
 
+            {/* Лево: тема + превью. Имя менеджера тут не показываем —
+                и так есть аватар, а полное имя дублируется в хедере чата. */}
             <div
               style={{
                 flex: 1,
                 minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 3,
+                gap: 4,
               }}
             >
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'baseline',
-                  gap: 8,
+                  alignItems: 'center',
+                  gap: 6,
+                  overflow: 'hidden',
                 }}
               >
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {t.is_closed && (
-                    <span style={{ flexShrink: 0, color: 'var(--ink-3)', display: 'flex' }}>
-                      <Ic name="lock" size={12} />
-                    </span>
-                  )}
-                  <span
-                    className="t-body"
-                    style={{
-                      fontWeight: t.unread_count > 0 ? 600 : 500,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      minWidth: 0,
-                    }}
-                  >
-                    {t.subject}
+                {t.is_closed && (
+                  <span style={{ flexShrink: 0, color: 'var(--ink-3)', display: 'flex' }}>
+                    <Ic name="lock" size={12} />
                   </span>
-                </div>
-                <div
-                  className="t-small dim"
+                )}
+                <span
+                  className="t-body"
                   style={{
-                    flexShrink: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  {showReceipt && (
-                    <span
-                      title={lm.read_by_others ? 'Прочитано' : 'Доставлено'}
-                      style={{
-                        display: 'inline-flex',
-                        color: lm.read_by_others ? 'var(--accent)' : 'var(--ink-3)',
-                      }}
-                    >
-                      <Ic
-                        name={lm.read_by_others ? 'check_double' : 'check'}
-                        size={12}
-                      />
-                    </span>
-                  )}
-                  <span style={{ whiteSpace: 'nowrap' }}>
-                    {lastMessageTime(t.last_message_at ?? t.created_at)}
-                  </span>
-                </div>
-              </div>
-
-              {showManager && t.manager?.name && (
-                <div
-                  className="t-small dim"
-                  style={{
+                    fontWeight: t.unread_count > 0 ? 600 : 500,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
+                    minWidth: 0,
                   }}
                 >
-                  {t.manager.name}
-                </div>
-              )}
-
+                  {t.subject}
+                </span>
+              </div>
               <div
+                className="t-small dim"
                 style={{
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  gap: 8,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                   minHeight: 16,
                 }}
               >
-                <span
-                  className="t-small dim"
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  {t.last_message_preview ?? ''}
-                </span>
-                {t.unread_count > 0 && (
+                {t.last_message_preview ?? ''}
+              </div>
+            </div>
+
+            {/* Право: время сверху, бейдж непрочитанных под ним. Min-width
+                держит колонку фиксированной — карточка не «скачет» от
+                длины времени. */}
+            <div
+              style={{
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                gap: 6,
+                minWidth: 56,
+                paddingTop: 2,
+              }}
+            >
+              <div
+                className="t-small dim"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {showReceipt && (
                   <span
+                    title={lm.read_by_others ? 'Прочитано' : 'Доставлено'}
                     style={{
-                      flexShrink: 0,
-                      minWidth: 18,
-                      height: 18,
-                      padding: '0 6px',
-                      borderRadius: 999,
-                      background: 'var(--accent)',
-                      color: 'var(--accent-fg)',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      lineHeight: '18px',
-                      textAlign: 'center',
+                      display: 'inline-flex',
+                      color: lm.read_by_others ? 'var(--accent)' : 'var(--ink-3)',
                     }}
                   >
-                    {t.unread_count > 9 ? '9+' : t.unread_count}
+                    <Ic
+                      name={lm.read_by_others ? 'check_double' : 'check'}
+                      size={14}
+                    />
                   </span>
                 )}
+                <span>{fmtTicketListTime(t.last_message_at ?? t.created_at)}</span>
               </div>
+              {t.unread_count > 0 ? (
+                <span
+                  style={{
+                    minWidth: 20,
+                    height: 20,
+                    padding: '0 6px',
+                    borderRadius: 999,
+                    background: 'var(--accent)',
+                    color: 'var(--accent-fg)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    lineHeight: '20px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {t.unread_count > 99 ? '99+' : t.unread_count}
+                </span>
+              ) : (
+                // Невидимый placeholder той же высоты — карточки строго
+                // одинаковой высоты, не дёргаются при чтении/появлении бейджа.
+                <span style={{ height: 20 }} aria-hidden />
+              )}
             </div>
           </button>
         );
