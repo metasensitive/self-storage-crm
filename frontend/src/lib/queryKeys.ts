@@ -62,4 +62,18 @@ export const queryKeys = {
     list: (userId: number | null | undefined) =>
       [...queryKeys.notifications.all, 'list', userId ?? null] as const,
   },
+
+  support: {
+    all: ['support'] as const,
+    // user-scoped (как у notifications) — список тикетов у разных аккаунтов
+    // разный (manager видит свои, admin все), не дай кэшу протечь между ними.
+    tickets: (userId: number | null | undefined, params: Record<string, unknown> = {}) =>
+      [...queryKeys.support.all, 'tickets', userId ?? null, params] as const,
+    ticket: (id: number, userId: number | null | undefined) =>
+      [...queryKeys.support.all, 'tickets', userId ?? null, 'detail', id] as const,
+    messages: (ticketId: number, userId: number | null | undefined) =>
+      [...queryKeys.support.all, 'tickets', userId ?? null, 'detail', ticketId, 'messages'] as const,
+    unread: (userId: number | null | undefined) =>
+      [...queryKeys.support.all, 'unread', userId ?? null] as const,
+  },
 };

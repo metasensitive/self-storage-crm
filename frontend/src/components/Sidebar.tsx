@@ -6,6 +6,7 @@ import { Ic, type IconName } from './Ic';
 import { AccountSwitcher } from './AccountSwitcher';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTweaks } from '@/hooks/useTweaks';
+import { useSupportUnread } from '@/hooks/useSupportUnread';
 import type { Role } from '@/api/types';
 
 interface NavItem {
@@ -26,12 +27,20 @@ const NAV: NavItem[] = [
   { to: '/activity-log', label: 'Журнал', icon: 'clock', roles: ['admin'] },
 ];
 
+const SUPPORT_ITEM: NavItem = {
+  to: '/support',
+  label: 'Поддержка',
+  icon: 'message',
+  roles: ['admin', 'manager'],
+};
+
 export function Sidebar() {
   const { user, role } = useAuth();
   const { tweaks, setTweak } = useTweaks();
   const navigate = useNavigate();
   const pillRef = useRef<HTMLButtonElement>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const supportUnread = useSupportUnread();
 
   if (!user || !role) return null;
 
@@ -64,6 +73,37 @@ export function Sidebar() {
           <span>{n.label}</span>
         </NavLink>
       ))}
+
+      <div className="nav-section">
+        <span className="label">Поддержка</span>
+      </div>
+      <NavLink
+        to={SUPPORT_ITEM.to}
+        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+      >
+        <Ic name={SUPPORT_ITEM.icon} className="ic" />
+        <span>{SUPPORT_ITEM.label}</span>
+        {supportUnread > 0 && (
+          <span
+            aria-label={`${supportUnread} непрочитанных`}
+            style={{
+              marginLeft: 'auto',
+              minWidth: 20,
+              height: 18,
+              padding: '0 6px',
+              borderRadius: 999,
+              background: 'var(--accent)',
+              color: 'var(--accent-fg)',
+              fontSize: 11,
+              fontWeight: 700,
+              lineHeight: '18px',
+              textAlign: 'center',
+            }}
+          >
+            {supportUnread > 9 ? '9+' : supportUnread}
+          </span>
+        )}
+      </NavLink>
 
       <div className="nav-section">
         <span className="label">Аккаунт</span>

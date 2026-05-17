@@ -30,7 +30,24 @@ class SupportTicketController extends Controller
 
         $tickets = SupportTicket::query()
             ->visibleTo($user)
-            ->with(['manager:id,name,email,role,avatar'])
+            ->with([
+                'manager:id,name,email,role,avatar',
+                // Подгружаем последнее сообщение тикета + считаем сколько
+                // других пользователей (кроме автора) его прочитали — нужно
+                // для индикатора прочитано/непрочитано рядом с временем в
+                // списке тикетов (telegram-style галочки).
+                'lastMessage' => function ($q) {
+                    $q->withCount([
+                        'reads as read_by_others_count' => function ($sub) {
+                            $sub->whereColumn(
+                                'support_message_reads.user_id',
+                                '!=',
+                                'support_messages.author_id',
+                            );
+                        },
+                    ]);
+                },
+            ])
             ->when($status, fn($q, $v) => $q->where('status', $v))
             // Только что писавшие — сверху; никогда не писавшие — по дате создания.
             ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
@@ -100,7 +117,7 @@ class SupportTicketController extends Controller
         $status = $request->string('status')->toString();
         $ticket = $status === SupportTicket::STATUS_CLOSED
             ? $this->support->closeTicket($ticket, $request->user())
-            : $this->support->reopenTicket($ticket);
+            : $this->support->reopenTicket($ticket, $request->user());
 
         $ticket->load(['manager:id,name,email,role,avatar']);
 

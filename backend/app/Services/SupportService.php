@@ -158,25 +158,44 @@ class SupportService
         if ($ticket->isClosed()) {
             return $ticket;
         }
-        $ticket->update([
-            'status' => SupportTicket::STATUS_CLOSED,
-            'closed_at' => now(),
-            'closed_by' => $by->id,
-        ]);
+        DB::transaction(function () use ($ticket, $by) {
+            $ticket->update([
+                'status' => SupportTicket::STATUS_CLOSED,
+                'closed_at' => now(),
+                'closed_by' => $by->id,
+            ]);
+            // Системное сообщение в ленту чата — чтобы и админ, и менеджер
+            // видели, кто и когда закрыл тикет. last_message_* не трогаем —
+            // системные события не должны менять превью в списке тикетов.
+            SupportMessage::create([
+                'ticket_id' => $ticket->id,
+                'author_id' => $by->id,
+                'type' => SupportMessage::TYPE_SYSTEM_CLOSED,
+                'body' => null,
+            ]);
+        });
         $this->broadcastSafe(fn() => broadcast(new SupportTicketUpdated($ticket->id, 'status')));
         return $ticket->fresh();
     }
 
-    public function reopenTicket(SupportTicket $ticket): SupportTicket
+    public function reopenTicket(SupportTicket $ticket, User $by): SupportTicket
     {
         if (!$ticket->isClosed()) {
             return $ticket;
         }
-        $ticket->update([
-            'status' => SupportTicket::STATUS_OPEN,
-            'closed_at' => null,
-            'closed_by' => null,
-        ]);
+        DB::transaction(function () use ($ticket, $by) {
+            $ticket->update([
+                'status' => SupportTicket::STATUS_OPEN,
+                'closed_at' => null,
+                'closed_by' => null,
+            ]);
+            SupportMessage::create([
+                'ticket_id' => $ticket->id,
+                'author_id' => $by->id,
+                'type' => SupportMessage::TYPE_SYSTEM_REOPENED,
+                'body' => null,
+            ]);
+        });
         $this->broadcastSafe(fn() => broadcast(new SupportTicketUpdated($ticket->id, 'status')));
         return $ticket->fresh();
     }

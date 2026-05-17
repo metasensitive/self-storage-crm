@@ -20,6 +20,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import UsersPage from './pages/UsersPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import ProfilePage from './pages/ProfilePage';
+import SupportPage from './pages/SupportPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="/units" element={<UnitsPage />} />
               <Route path="/rents" element={<RentsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/support" element={<SupportPage />} />
               <Route path="/profile" element={<ProfilePage />} />
 
               <Route element={<RoleGuard allow={['admin']} />}>

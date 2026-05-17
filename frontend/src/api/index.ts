@@ -9,3 +9,4 @@ export { unitsApi } from './units';
 export { rentsApi } from './rents';
 export { analyticsApi } from './analytics';
 export { sessionsApi, type Session } from './sessions';
+export { supportApi } from './support';

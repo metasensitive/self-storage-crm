@@ -14,9 +14,19 @@ class SupportMessage extends Model
     protected $fillable = [
         'ticket_id',
         'author_id',
+        'type',
         'body',
         'edited_at',
     ];
+
+    const string TYPE_MESSAGE = 'message';
+    const string TYPE_SYSTEM_CLOSED = 'system_closed';
+    const string TYPE_SYSTEM_REOPENED = 'system_reopened';
+
+    public function isSystem(): bool
+    {
+        return str_starts_with($this->type ?? '', 'system_');
+    }
 
     protected function casts(): array
     {

@@ -64,6 +64,15 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // FormData → отдаём axios самому проставить multipart/form-data с boundary.
+  // Без этого default 'application/json' из axios.create() переопределит и
+  // Laravel получит пустой $request->file('attachments') → 422.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    if (config.headers) {
+      delete (config.headers as Record<string, unknown>)['Content-Type'];
+      delete (config.headers as Record<string, unknown>)['content-type'];
+    }
+  }
   return config;
 });
 

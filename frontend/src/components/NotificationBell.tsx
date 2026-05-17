@@ -63,7 +63,40 @@ function describe(n: AppNotification, currentUserId?: number): string {
       code ? ` в ${code}` : ''
     }`;
   }
+  if (n.type === 'support.message') {
+    const rawSender = (n.data.sender_name as string | undefined) ?? 'Сотрудник';
+    const senderRole = n.data.sender_role as string | undefined;
+    const subject = (n.data.subject as string | undefined) ?? '';
+    // Для менеджера маскируем любого админа как обобщённый «Администратор»
+    // (та же логика, что в чате) — он не должен видеть, кто из админов
+    // отвечает в саппорте, чтобы это работало как единый «офис поддержки».
+    // Маркер актуальной роли получателя берём из data.recipient_role, но
+    // надёжнее — из текущего контекста, поэтому функцию вызываем из места,
+    // где есть `currentUserRole`. Здесь же оставляем дефолт без маскировки.
+    const sender = rawSender;
+    void senderRole;
+    return `${sender}: новое сообщение в тикете «${subject}»`;
+  }
   return 'Новое событие';
+}
+
+/**
+ * Описание уведомления с учётом роли получателя. Для менеджера маскируем
+ * имена админов как «Администратор».
+ */
+function describeForRole(
+  n: AppNotification,
+  currentUserId: number | undefined,
+  currentRole: 'admin' | 'manager' | null,
+): string {
+  if (n.type === 'support.message' && currentRole === 'manager') {
+    const senderRole = n.data.sender_role as string | undefined;
+    const subject = (n.data.subject as string | undefined) ?? '';
+    if (senderRole === 'admin') {
+      return `Администратор: новое сообщение в тикете «${subject}»`;
+    }
+  }
+  return describe(n, currentUserId);
 }
 
 function deepLink(n: AppNotification): string | null {
@@ -78,6 +111,9 @@ function deepLink(n: AppNotification): string | null {
   }
   if (n.type === 'unit.created' && typeof n.data.unit_id === 'number') {
     return `/units?open=${n.data.unit_id}`;
+  }
+  if (n.type === 'support.message' && typeof n.data.ticket_id === 'number') {
+    return `/support?open=${n.data.ticket_id}`;
   }
   return null;
 }
@@ -323,7 +359,7 @@ export function NotificationBell() {
                           className="t-body"
                           style={{ fontWeight: unreadItem ? 500 : 400 }}
                         >
-                          {describe(n, user.id)}
+                          {describeForRole(n, user.id, user.role)}
                         </div>
                         <div className="t-small dim mt-1">{relTime(n.created_at)}</div>
                       </div>
