@@ -31,6 +31,12 @@ interface ComposerProps {
 const COMPOSER_MIN_H = 40;
 const COMPOSER_MAX_H = 200;
 
+// Дебаунс typing-сигнала: шлём не чаще одного раза в 3 сек, пока
+// пользователь набирает текст. Слушатели держат индикатор 5 сек
+// после последнего полученного события — значит при активном наборе
+// мы как минимум раз в 3 сек продлеваем индикатор у собеседника.
+const TYPING_THROTTLE_MS = 3000;
+
 export function Composer({ ticketId, currentUserId, disabled, disabledHint }: ComposerProps) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -39,6 +45,19 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastTypingSentRef = useRef<number>(0);
+
+  // Дебаунсированный пуш typing-сигнала. Бросаем, только если в инпуте
+  // что-то есть (стирание до пустоты — не «набираю»). Ошибки молча
+  // глотаем: индикатор не критичен, не должен мешать UX композера.
+  function pushTyping(nextBody: string) {
+    if (disabled) return;
+    if (nextBody.trim().length === 0) return;
+    const now = Date.now();
+    if (now - lastTypingSentRef.current < TYPING_THROTTLE_MS) return;
+    lastTypingSentRef.current = now;
+    supportApi.tickets.typing(ticketId).catch(() => {});
+  }
 
   // Auto-grow: пересчитываем высоту на каждое изменение body. Сбрасываем
   // в 'auto' чтобы scrollHeight отражал реальный content height, затем
@@ -208,7 +227,11 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
         <Textarea
           ref={textareaRef}
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setBody(v);
+            pushTyping(v);
+          }}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           placeholder="Напишите сообщение… (Ctrl+Enter — отправить, Ctrl+V — вставить скриншот)"
