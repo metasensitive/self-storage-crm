@@ -191,17 +191,34 @@ class SupportTicketController extends Controller
             return response()->noContent();
         }
         $user = $request->user();
+        // Откладываем broadcast в terminating-callback — typing-сигнал самый
+        // горячий путь (раз в 3 сек на каждого набирающего), держать
+        // http-response пока Reverb не подтвердит publish — расточительно.
+        $payload = [
+            'ticket_id' => $ticket->id,
+            'user_id' => $user->id,
+            'user_name' => (string) $user->name,
+            'user_role' => (string) $user->role,
+        ];
         try {
-            broadcast(new SupportTyping(
-                $ticket->id,
-                $user->id,
-                (string) $user->name,
-                (string) $user->role,
-            ));
+            app()->terminating(function () use ($payload) {
+                try {
+                    broadcast(new SupportTyping(
+                        $payload['ticket_id'],
+                        $payload['user_id'],
+                        $payload['user_name'],
+                        $payload['user_role'],
+                    ));
+                } catch (Throwable $e) {
+                    Log::warning('broadcast SupportTyping failed', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            });
         } catch (Throwable $e) {
-            // best-effort, как и остальной broadcast в поддержке: падение
-            // Reverb не должно ронять http-запрос.
-            Log::warning('broadcast SupportTyping failed', ['error' => $e->getMessage()]);
+            Log::warning('typing afterResponse register failed', [
+                'error' => $e->getMessage(),
+            ]);
         }
         return response()->noContent();
     }

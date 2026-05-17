@@ -293,13 +293,33 @@ class SupportService
         NotificationDispatcher::toAdmins($notification);
     }
 
-    /** Broadcast обёрнут — падение Reverb не должно ронять http-запрос. */
+    /**
+     * Отложенный broadcast — через terminating-callback.
+     *
+     * Раньше broadcast() вызывался синхронно в request-cycle: SupportMessageCreated
+     * (ShouldBroadcastNow) и N broadcast'ов в NotificationDispatcher блокировали
+     * HTTP-response пока Reverb не подтвердит publish (~200-500 ms × N).
+     *
+     * `app()->terminating(...)` выполняется ПОСЛЕ того, как Laravel отдал ответ
+     * клиенту: пользователь видит результат POST'а мгновенно, broadcast улетает
+     * фоном за десятки миллисекунд. Без очереди и worker'а — всё в том же PHP-
+     * процессе через `register_shutdown_function`-механику Laravel'а.
+     *
+     * Падение Reverb по-прежнему не роняет http: и сама регистрация callback'а,
+     * и его исполнение обёрнуты в try/catch.
+     */
     private function broadcastSafe(callable $fn): void
     {
         try {
-            $fn();
+            app()->terminating(function () use ($fn) {
+                try {
+                    $fn();
+                } catch (Throwable $e) {
+                    Log::warning('support deferred broadcast failed', ['error' => $e->getMessage()]);
+                }
+            });
         } catch (Throwable $e) {
-            Log::warning('support broadcast failed', ['error' => $e->getMessage()]);
+            Log::warning('support afterResponse register failed', ['error' => $e->getMessage()]);
         }
     }
 }
