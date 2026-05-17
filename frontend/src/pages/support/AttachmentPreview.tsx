@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Ic } from '@/components/Ic';
 import type { SupportAttachment } from '@/api/support';
-import { attachmentIcon, attachmentIconColor } from './utils';
+import { attachmentIcon, attachmentIconColor, attachmentLabel } from './utils';
 // HoverZoom переехал в Composer — для уже отправленных сообщений достаточно
 // клика по миниатюре, который открывает lightbox. Hover-зум в ленте мешал
 // читать переписку (всплывал поверх соседних сообщений).
@@ -113,24 +113,30 @@ export function AttachmentPreview({ attachment, authToken }: AttachmentPreviewPr
     );
   }
 
-  // Не-изображение: карточка с типизированной иконкой.
+  // Не-изображение: компактная карточка с цветной иконкой типа.
+  // - Имя строго в одну строку с ellipsis;
+  // - Лейбл (PDF/DOCX/XLSX/TXT) — короткий, читается лучше сырого mime;
+  // - Цвет имени берём из var(--ink) явно — внутри bubble «своих»
+  //   сообщений inherit-цвет = var(--accent-fg) (белый), и на тёмном
+  //   фоне карточки имя сливалось с подложкой.
   return (
     <button
       type="button"
       onClick={downloadFile}
-      title="Скачать"
+      title={`Скачать «${attachment.original_name}»`}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        padding: '10px 12px',
+        gap: 10,
+        padding: '8px 10px',
         background: 'var(--bg)',
         border: '1px solid var(--line)',
         borderRadius: 'var(--r-md)',
         cursor: 'pointer',
         textAlign: 'left',
-        minWidth: 240,
+        width: '100%',
         maxWidth: 320,
+        color: 'var(--ink)',
       }}
     >
       <span
@@ -148,27 +154,42 @@ export function AttachmentPreview({ attachment, authToken }: AttachmentPreviewPr
       >
         <Ic name={attachmentIcon(attachment.mime, attachment.original_name)} size={18} />
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          overflow: 'hidden',
+        }}
+      >
         <div
-          className="t-body"
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--ink)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: 1.3,
+          }}
+        >
+          {attachment.original_name || 'Файл'}
+        </div>
+        <div
+          className="t-small dim"
           style={{
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}
         >
-          {attachment.original_name}
-        </div>
-        <div className="t-small dim">
+          {attachmentLabel(attachment.mime, attachment.original_name)} ·{' '}
           {fmtSize(attachment.size_bytes)}
-          {attachment.mime && (
-            <span style={{ marginLeft: 6, opacity: 0.7 }}>
-              · {attachment.mime.split('/').pop()}
-            </span>
-          )}
         </div>
       </div>
-      <Ic name="download" size={14} />
+      <Ic name="download" size={14} className="" />
     </button>
   );
 }

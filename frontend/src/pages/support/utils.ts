@@ -48,3 +48,28 @@ export function attachmentIconColor(mime: string, name: string): string {
   if (ext === 'txt' || mime === 'text/plain') return 'var(--ink-3)';
   return 'var(--ink-2)';
 }
+
+/**
+ * Короткий человеко-читаемый ярлык типа файла. Берём расширение если есть
+ * (надёжнее всего для пользователя), иначе пробуем mime — но не сырой
+ * `vnd.openxmlformats-officedocument.wordprocessingml.document`, а маппим
+ * в простое «DOCX», «XLSX» и т. п.
+ */
+export function attachmentLabel(mime: string, name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  // Известные расширения сразу — всегда коротко и понятно.
+  const known = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif'];
+  if (known.includes(ext)) return ext.toUpperCase();
+
+  // По mime — мапим длинные office-mime-ы.
+  if (mime.includes('wordprocessingml')) return 'DOCX';
+  if (mime.includes('msword')) return 'DOC';
+  if (mime.includes('spreadsheetml')) return 'XLSX';
+  if (mime.includes('ms-excel')) return 'XLS';
+  if (mime === 'application/pdf') return 'PDF';
+  if (mime === 'text/plain') return 'TXT';
+  if (mime.startsWith('image/')) return mime.split('/').pop()?.toUpperCase() ?? 'IMG';
+
+  // Фолбэк — расширение, если ничего не сматчилось.
+  return ext.toUpperCase() || 'FILE';
+}

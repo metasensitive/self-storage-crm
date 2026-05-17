@@ -6,7 +6,7 @@ import { Ic } from '@/components/Ic';
 import { useToast } from '@/components/ui/Toast';
 import { supportApi } from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
-import { attachmentIcon, attachmentIconColor } from './utils';
+import { attachmentIcon, attachmentIconColor, attachmentLabel } from './utils';
 
 const MAX_FILES = 5;
 const MAX_KB = 10240;
@@ -319,34 +319,65 @@ function PendingAttachment({ file, onRemove }: { file: File; onRemove: () => voi
     );
   }
 
+  // Не-картинка: компактный чип, выровненный по высоте картинки-миниатюры
+  // (64 px) — обе формы вложений в одной строке смотрятся ровно.
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        padding: '6px 10px',
+        padding: '0 8px 0 0',
         background: 'var(--bg)',
         border: '1px solid var(--line)',
         borderRadius: 'var(--r-md)',
-        fontSize: 12,
-        height: 32,
+        height: 64,
+        maxWidth: 220,
+        overflow: 'hidden',
       }}
       title={file.name}
     >
-      <span style={{ color: attachmentIconColor(file.type, file.name), display: 'flex' }}>
-        <Ic name={attachmentIcon(file.type, file.name)} size={14} />
-      </span>
       <span
         style={{
-          maxWidth: 180,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
+          color: attachmentIconColor(file.type, file.name),
+          background: 'var(--bg-muted)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 40,
+          height: '100%',
+          borderRight: '1px solid var(--line)',
+          flexShrink: 0,
         }}
       >
-        {file.name}
+        <Ic name={attachmentIcon(file.type, file.name)} size={18} />
       </span>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          overflow: 'hidden',
+        }}
+      >
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            color: 'var(--ink)',
+          }}
+        >
+          {file.name}
+        </span>
+        <span className="t-small dim" style={{ fontSize: 11 }}>
+          {attachmentLabel(file.type, file.name)}
+        </span>
+      </div>
       <button
         type="button"
         onClick={onRemove}
@@ -357,6 +388,8 @@ function PendingAttachment({ file, onRemove }: { file: File; onRemove: () => voi
           cursor: 'pointer',
           padding: 2,
           display: 'flex',
+          color: 'var(--ink-3)',
+          flexShrink: 0,
         }}
       >
         <Ic name="close" size={12} />
