@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Topbar } from '@/components/Topbar';
 import { Button } from '@/components/ui/Button';
 import { Empty } from '@/components/ui/Empty';
@@ -11,7 +11,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supportApi, type SupportTicketStatus } from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
 import { pluralize } from '@/lib/format';
-import { useRealtimeEvent } from '@/lib/useRealtimeEvent';
 import { TicketList } from './support/TicketList';
 import { TicketView } from './support/TicketView';
 import { NewTicketModal } from './support/NewTicketModal';
@@ -20,7 +19,6 @@ const pluralizeTickets = (n: number) => pluralize(n, ['тикет', 'тикет�
 
 export default function SupportPage() {
   const { user } = useAuth();
-  const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [statusFilter, setStatusFilter] = useState<SupportTicketStatus | 'all'>('all');
   const [newTicketOpen, setNewTicketOpen] = useState(false);
@@ -31,24 +29,9 @@ export default function SupportPage() {
 
   const isAdmin = user?.role === 'admin';
 
-  // Реалтайм: новые тикеты у админа — через support.admin (хук в сайдбаре
-  // уже подписан, но дублировать тут не страшно — useRealtimeEvent
-  // идемпотентен по комбинации канала+события на компонент).
-  useRealtimeEvent({
-    enabled: !!user && isAdmin,
-    channel: 'support.admin',
-    event: 'ticket.created',
-    onEvent: () => qc.invalidateQueries({ queryKey: queryKeys.support.all }),
-  });
-
-  // Также подписка на personal-канал — для менеджера, чтобы при ответе
-  // админа список тикетов сразу обновился без ожидания polling-а.
-  useRealtimeEvent({
-    enabled: !!user,
-    channel: user ? `App.Models.User.${user.id}` : '',
-    event: 'notification.received',
-    onEvent: () => qc.invalidateQueries({ queryKey: queryKeys.support.all }),
-  });
+  // Подписки на support.admin и personal-канал поднимаются в useSupportUnread,
+  // которая монтируется в сайдбаре и активна на всех страницах включая эту.
+  // Раньше тут стояли дубли — каждое событие вызывало двойную инвалидацию.
 
   const params = useMemo(
     () => (statusFilter === 'all' ? {} : { status: statusFilter }),

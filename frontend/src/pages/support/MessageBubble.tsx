@@ -43,11 +43,15 @@ export function MessageBubble({
 
   const isMine = message.author?.id === currentUserId;
   const isDeleted = message.is_deleted;
+  // Optimistic temp-сообщение из Composer'а — пока сервер не ответил,
+  // у него отрицательный id. Не показываем кнопки edit/delete и не
+  // отдаём read-receipt — они станут актуальны после подтверждения.
+  const isPending = message.id < 0;
   const ageMin = (() => {
     const d = new Date(message.created_at);
     return Number.isNaN(d.getTime()) ? Infinity : (Date.now() - d.getTime()) / 60_000;
   })();
-  const canEdit = isMine && !isDeleted && ageMin < EDIT_WINDOW_MIN;
+  const canEdit = isMine && !isDeleted && !isPending && ageMin < EDIT_WINDOW_MIN;
 
   // Если редактирование открыто и окно прошло — закрыть.
   useEffect(() => {
@@ -57,7 +61,11 @@ export function MessageBubble({
   const updateMut = useMutation({
     mutationFn: (body: string) => supportApi.messages.update(message.id, body),
     onSuccess: () => {
+      // Достаточно перечитать messages — список тикетов last_message_preview
+      // обновит invalidate ниже только если редактируется ПОСЛЕДНЕЕ
+      // сообщение тикета. Чтобы не гадать, инвалидируем оба ключа.
       qc.invalidateQueries({ queryKey: queryKeys.support.messages(ticketId, currentUserId) });
+      qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
       setEditing(false);
     },
     onError: (err: unknown) => {
@@ -69,7 +77,8 @@ export function MessageBubble({
   const deleteMut = useMutation({
     mutationFn: () => supportApi.messages.delete(message.id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.support.all });
+      qc.invalidateQueries({ queryKey: queryKeys.support.messages(ticketId, currentUserId) });
+      qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
       setConfirmDelete(false);
     },
     onError: (err: unknown) => {
@@ -216,6 +225,10 @@ export function MessageBubble({
               borderRadius: 14,
               borderBottomRightRadius: isMine ? 4 : 14,
               borderBottomLeftRadius: isMine ? 14 : 4,
+              // Pending temp-баббл слегка приглушаем — визуальная подсказка
+              // «отправляется», сразу после ответа сервера opacity вернётся.
+              opacity: isPending ? 0.6 : 1,
+              transition: 'opacity 0.15s',
               ...bubbleStyle,
             }}
           >
@@ -261,8 +274,13 @@ export function MessageBubble({
         >
           {message.edited_at && !isDeleted && <span title="Изменено">(изменено)</span>}
           <span>{fmtTime(message.created_at)}</span>
-          {isMine && !isDeleted && (
+          {isMine && !isDeleted && !isPending && (
             <Ic name={hasReadByOther ? 'check_double' : 'check'} size={12} className="" />
+          )}
+          {isPending && (
+            <span title="Отправляется" style={{ display: 'inline-flex' }}>
+              <Ic name="clock" size={11} className="" />
+            </span>
           )}
           {canEdit && !editing && !isDeleted && (
             <>

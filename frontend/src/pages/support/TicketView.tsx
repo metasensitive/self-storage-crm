@@ -54,7 +54,18 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
 
   const markReadMut = useMutation({
     mutationFn: () => supportApi.tickets.markRead(ticket.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.support.all }),
+    onSuccess: () => {
+      // Mark-read со стороны viewer'а влияет на:
+      //  - tickets[] — unread_count для этого тикета упадёт до 0;
+      //  - unread — общий счётчик в сайдбаре уменьшится;
+      // На свои read_by записи в собственной messages-ленте мы НЕ смотрим
+      // (`hasReadByOther` всегда проверяет r.user_id !== currentUserId),
+      // поэтому messages-query инвалидировать не нужно. Собеседник
+      // получает SupportTicketUpdated('read') через ws и инвалидирует
+      // свою ленту в useSupportTicketChannel.
+      qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
+      qc.invalidateQueries({ queryKey: ['support', 'unread'] });
+    },
   });
 
   const messages = messagesQ.data?.data ?? [];
@@ -164,7 +175,13 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
   const statusMut = useMutation({
     mutationFn: (next: 'open' | 'closed') => supportApi.tickets.updateStatus(ticket.id, next),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.support.all });
+      // Close/reopen пишет системное сообщение в ленту (SupportService) и
+      // меняет ticket.status. Нужны и messages, и tickets — unread/preview
+      // же останутся как были.
+      qc.invalidateQueries({
+        queryKey: queryKeys.support.messages(ticket.id, currentUserId),
+      });
+      qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
       setStatusModal(null);
     },
   });

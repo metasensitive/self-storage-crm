@@ -7,12 +7,16 @@ import { useRealtimeEvent } from '@/lib/useRealtimeEvent';
 /**
  * Счётчик непрочитанных сообщений в поддержке — для бейджа в сайдбаре.
  *
- * Источники инвалидации:
+ * Источники инвалидации (selective — раньше тут было support.all,
+ * что инвалидировало tickets и messages зря; пользователь мог быть
+ * на странице с открытой лентой и каждое уведомление вызывало volna
+ * refetch'ей):
  *  - Polling 30 с — fallback на случай, когда Reverb недоступен.
- *  - `notification.received` на личном канале — общий хук для всех
- *    in-app уведомлений, шлётся в т. ч. при новом сообщении поддержки
- *    (см. backend SupportMessageNotification).
- *  - `support.admin` — мгновенный пуш о новых тикетах для админов.
+ *  - `notification.received` на личном канале — приходит и при support-
+ *    сообщениях, и при rent/location/container/unit. Инвалидируем
+ *    только unread + список тикетов (preview/last_message_at).
+ *  - `support.admin` — мгновенный пуш о новых тикетах для админов:
+ *    обновляем tickets и unread.
  */
 export function useSupportUnread(): number {
   const { user } = useAuth();
@@ -31,14 +35,20 @@ export function useSupportUnread(): number {
     enabled: !!user,
     channel: user ? `App.Models.User.${user.id}` : '',
     event: 'notification.received',
-    onEvent: () => void qc.invalidateQueries({ queryKey: queryKeys.support.all }),
+    onEvent: () => {
+      qc.invalidateQueries({ queryKey: ['support', 'unread'] });
+      qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
+    },
   });
 
   useRealtimeEvent({
     enabled: !!user && user.role === 'admin',
     channel: 'support.admin',
     event: 'ticket.created',
-    onEvent: () => void qc.invalidateQueries({ queryKey: queryKeys.support.all }),
+    onEvent: () => {
+      qc.invalidateQueries({ queryKey: ['support', 'unread'] });
+      qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
+    },
   });
 
   return q.data?.unread ?? 0;
