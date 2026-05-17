@@ -38,7 +38,7 @@
 | **Геокодинг**        | Photon (OpenStreetMap) — autocomplete-сервис от Komoot, без API-ключа |
 | **Real-time**        | Laravel Reverb (WebSocket, Pusher-протокол) + Laravel Echo + pusher-js |
 | **Документация API** | Swagger (Scramble)                                                   |
-| **Тестирование**     | PHPUnit — 33 теста (Feature + Unit)                                  |
+| **Тестирование**     | PHPUnit — 62 теста (Feature + Unit)                                  |
 
 ---
 
@@ -50,18 +50,27 @@ self-storage-crm/
 │   ├── app/
 │   │   ├── Http/
 │   │   │   ├── Controllers/      # Auth, Profile, Users, Locations,
-│   │   │   │                       Containers, Units, Rents, Analytics
+│   │   │   │   │                   Containers, Units, Rents, Analytics
+│   │   │   │   └── Support/      # Чат поддержки: Ticket, Message,
+│   │   │   │                       Search, Attachment-контроллеры
 │   │   │   ├── Middleware/       # RoleMiddleware, RefreshTokenMetadata
 │   │   │   ├── Requests/         # FormRequest на каждое мутирующее действие
+│   │   │   │   └── Support/      # Store/Update Ticket/Message FormRequests
 │   │   │   └── Resources/        # JsonResource для ответов API
+│   │   │       └── Support/      # Ticket/Message/Attachment Resources
 │   │   ├── Events/               # ResourceChanged, ActivityLogCreated,
-│   │   │                           NotificationReceived (broadcast через Reverb)
+│   │   │   │                       NotificationReceived (broadcast через Reverb)
+│   │   │   └── Support/          # SupportTicketCreated/MessageCreated/
+│   │   │                           TicketUpdated/Typing
 │   │   ├── Mail/                 # ResetPasswordMail
 │   │   ├── Models/               # User, Location, Container, Unit, Rent,
-│   │   │   │                       ActivityLog
+│   │   │   │                       ActivityLog, SupportTicket / SupportMessage /
+│   │   │   │                       SupportAttachment / SupportMessageRead
 │   │   │   └── Concerns/         # LogsActivity (trait для аудит-лога)
-│   │   ├── Notifications/        # RentCreatedNotification (in-app)
-│   │   └── Services/             # RentService, AnalyticsService
+│   │   ├── Notifications/        # RentCreatedNotification, …,
+│   │   │                           SupportMessageNotification (in-app)
+│   │   └── Services/             # RentService, AnalyticsService,
+│   │                               SupportService, NotificationDispatcher
 │   ├── database/
 │   │   ├── factories/, migrations/, seeders/
 │   ├── resources/views/emails/   # blade-шаблоны писем
@@ -174,6 +183,7 @@ npm run dev
 - **Аналитика** — сетевые KPI, donut статусов, чарт дохода с переключателем 7/30/90 дней (hover-tooltip, тренд vs предыдущего периода), рейтинг локаций
 - **Сотрудники** (admin) — CRUD с генерацией временного пароля и копированием учётных данных
 - **Журнал действий** (admin) — автоматический аудит-лог всех CRUD по локациям/контейнерам/кладовкам/арендам/сотрудникам через trait `LogsActivity` на eloquent events. Карточный фид с фильтрами по типу объекта и действию, кликабельные ссылки на конкретный объект (deep-link `?open={id}` открывает drawer на нужной странице), разворачиваемый цветной diff `old → new` с переводом полей и enum-значений. Чувствительные поля (`password`, `remember_token`) и шум (`id`, `email_verified_at`, FK-id) в diff не попадают. Polling каждые 15 сек для live-обновления.
+- **Чат поддержки** — встроенный мессенджер админ ↔ менеджер. Менеджер заводит **тикеты** с темой и пишет в них, админы видят список **всех** тикетов всех менеджеров; менеджер — только свои. Двухколоночный layout `/support` (список + переписка) с внутренним скроллом ленты. Все клиентские строки про админа маскируются для менеджера как обобщённый «Администратор» — менеджер не видит, кто из админов отвечает (в чате, в bell, в индикаторе typing). Фичи: **вложения** (image/pdf/docx/xlsx/txt) с lightbox и hover-превью миниатюр в композере, **paste-скриншоты** из буфера (Ctrl+V), **read-receipts** (одна/две галочки в стиле Telegram), **редактирование/удаление** своих сообщений в окне 10 минут (soft-delete с плашкой «Сообщение удалено»), **поиск** по сообщениям, статусы тикета `open/closed` с **системными сообщениями** «закрыл/переоткрыл» в ленте, **typing-индикатор** «X печатает…» с дебаунсом, **память скролла** по тикетам (возвращаешься в тикет — оказываешься там же, где был), **в списке тикетов** — Telegram-style время в локальном TZ браузера, бейдж непрочитанных под временем. На странице — модалки для закрытия/удаления (не браузерный `confirm`). Push в существующий `NotificationBell` через стандартный Laravel `Notification` + database channel.
 - **Профиль** — данные, смена пароля (с автологином), управление аватаром, активные сессии
 
 ### Лендинг
@@ -184,7 +194,8 @@ npm run dev
 - **Live-обновления через WebSocket** (Laravel Reverb + Laravel Echo). Любой CRUD по локациям/контейнерам/кладовкам/арендам/сотрудникам автоматически пушится подписчикам через два приватных канала: `admin.activity` (журнал, только админ) и `app.changes` (общий, ресурс+id+action).
 - **DashboardPage** слушает `resource.changed` → инвалидирует кэш аналитики и затронутого ресурса → KPI, графики и списки обновляются без перезагрузки.
 - **ActivityLogPage** слушает `log.created` → мгновенно подтягивает новые записи. 15-сек polling сохранён как fallback на случай, когда Reverb недоступен.
-- **In-app колокольчик** в топбаре (`NotificationBell`) — popover со списком, бейдж непрочитанных, deep-link на объект по клику. Уведомления хранятся в БД через стандартный Laravel `Notification` + database channel; мгновенный push через `NotificationReceived` (ShouldBroadcastNow) на личный канал `App.Models.User.{id}`. Сейчас триггер один — «создана аренда» (рассылается всем сотрудникам кроме создателя); добавление новых типов — это один Notification-класс и одна точка триггера.
+- **In-app колокольчик** в топбаре (`NotificationBell`) — popover со списком, бейдж непрочитанных, deep-link на объект по клику. Уведомления хранятся в БД через стандартный Laravel `Notification` + database channel; мгновенный push через `NotificationReceived` (ShouldBroadcastNow) на личный канал `App.Models.User.{id}`. Триггеры: создание аренды/локации/контейнера/кладовки (рассылается всем сотрудникам), сообщение в чате поддержки (адресно — менеджеру или всем админам, в зависимости от автора).
+- **Чат поддержки** — два дополнительных приватных канала: `support.admin` (новые тикеты от менеджеров — только админ может подписаться) и `support.ticket.{id}` (сообщения, статусы, typing — авторизуется как admin OR владелец тикета). События: `ticket.created`, `message.created`, `ticket.updated` (status/read/edited/deleted), `typing` (эфемерное, без записи в БД). Композер дебаунсит typing-сигнал раз в 3 сек, индикатор «X печатает…» гаснет через 5 сек после последнего сигнала.
 - Авторизация private-каналов — через тот же Sanctum bearer-токен (эндпоинт `/api/broadcasting/auth` обёрнут в `auth:sanctum`). При logout/switch-account Echo пересоединяется под новый токен.
 - Если `VITE_REVERB_APP_KEY` пуст — фронт деградирует к refetch/polling без ошибок.
 
@@ -218,6 +229,7 @@ http://localhost:8000/docs/api
 | **Аналитика**       | `/api/v1/analytics/*`   | Админ + менеджер                                |
 | **Аудит-лог**       | `/api/v1/activity-logs` | Только админ                                    |
 | **Уведомления**     | `/api/v1/notifications/*` | Авторизованные (свои уведомления)             |
+| **Поддержка**       | `/api/v1/support/*`     | Чтение/переписка: админ + владелец-менеджер · Создание тикета: только менеджер |
 
 ---
 
@@ -231,6 +243,7 @@ http://localhost:8000/docs/api
 | `/dashboard`                                      | Все авторизованные                                        |
 | `/locations`, `/containers`, `/units`, `/rents`   | Все авторизованные                                        |
 | `/analytics`, `/profile`                          | Все авторизованные                                        |
+| `/support`                                        | Все авторизованные (создание тикета — только менеджер)    |
 | `/users`, `/activity-log`                         | Только администратор                                      |
 
 ---
@@ -242,7 +255,7 @@ cd backend
 php artisan test --testsuite=Feature
 ```
 
-**Результат:** ✅ 33 теста проходят.
+**Результат:** ✅ 62 теста проходят.
 
 Покрытие:
 - Аутентификация (login, forgot-password, reset-password)
@@ -254,6 +267,7 @@ php artisan test --testsuite=Feature
 - In-app уведомления (рассылка всем сотрудникам включая автора, list с unread_count, mark-all-read, защита от гостя)
 - Email (Mail::fake — reset-password отправляется реальному пользователю, неизвестный email молчит)
 - Кладовки (автогенерация номера в рамках контейнера при создании без `number`)
+- Чат поддержки — 7 классов, 29 кейсов: создание тикета только менеджером и рассылка уведомлений только админам, доступ (manager-A не видит тикет manager-B, admin видит всё), отправка/cursor-пагинация сообщений, edit/delete в окне 10 мин и 403 после, soft-delete гасит body в ресурсе, валидация вложений (mime, size) и приватная авторизация скачивания, read-receipts (idempotent insert + точный счёт unread), полнотекстовый ILIKE-поиск со scope по правам, close/reopen + запрет писать в закрытый, typing-сигнал (broadcast, доступ, no-op на closed, guest 401)
 
 ---
 
