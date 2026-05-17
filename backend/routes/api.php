@@ -68,6 +68,8 @@ Route::prefix('v1')->group(function () {
             Route::get('tickets/{ticket}', [SupportTicketController::class, 'show']);
             Route::patch('tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
             Route::post('tickets/{ticket}/read', [SupportTicketController::class, 'markRead']);
+            // Typing-индикатор: эфемерный broadcast, в БД ничего не пишется.
+            Route::post('tickets/{ticket}/typing', [SupportTicketController::class, 'typing']);
 
             // Сообщения тикета
             Route::get('tickets/{ticket}/messages', [SupportMessageController::class, 'index']);

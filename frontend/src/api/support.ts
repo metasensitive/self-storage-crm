@@ -126,6 +126,9 @@ export const supportApi = {
       api
         .post<{ message: string; data: { marked: number } }>(`/support/tickets/${id}/read`)
         .then((r) => r.data.data),
+
+    /** Эфемерный typing-сигнал. Возвращает 204, в БД ничего не пишется. */
+    typing: (id: number) => api.post<void>(`/support/tickets/${id}/typing`),
   },
 
   messages: {

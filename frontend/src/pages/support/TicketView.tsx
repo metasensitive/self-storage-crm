@@ -10,9 +10,11 @@ import { getToken } from '@/api/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupportTicketChannel } from '@/hooks/useSupportTicketChannel';
+import { useRealtimeEvent } from '@/lib/useRealtimeEvent';
 import { MessageBubble } from './MessageBubble';
 import { SystemMessage } from './SystemMessage';
 import { Composer } from './Composer';
+import { TypingIndicator, type TypingUser } from './TypingIndicator';
 import { fmtDateTimeLocal } from './time';
 
 interface TicketViewProps {
@@ -167,6 +169,64 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
     },
   });
 
+  // ──────── Typing indicator ────────
+  //
+  // Эфемерный сигнал «X набирает». Композер пушит его дебаунсированно
+  // (раз в 3 сек), мы держим индикатор 5 сек после последнего полученного
+  // события — если человек продолжает набирать, мы получаем новые
+  // событий чаще, чем таймер истечёт.
+  type TypingPayload = {
+    ticket_id: number;
+    user_id: number;
+    user_name: string;
+    user_role: 'admin' | 'manager';
+  };
+  const [typingUsers, setTypingUsers] = useState<Map<number, TypingUser>>(new Map());
+  useRealtimeEvent<TypingPayload>({
+    channel: `support.ticket.${ticket.id}`,
+    event: 'typing',
+    onEvent: (payload) => {
+      // Свой собственный сигнал игнорируем (broadcast уходит всем
+      // подписчикам канала, включая отправителя).
+      if (payload.user_id === currentUserId) return;
+      setTypingUsers((prev) => {
+        const next = new Map(prev);
+        next.set(payload.user_id, {
+          id: payload.user_id,
+          name: payload.user_name,
+          role: payload.user_role,
+          lastSeen: Date.now(),
+        });
+        return next;
+      });
+    },
+  });
+
+  // Пруним устаревшие записи (>5 сек без сигнала) каждую секунду.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTypingUsers((prev) => {
+        const now = Date.now();
+        let changed = false;
+        const next = new Map(prev);
+        for (const [id, u] of next) {
+          if (now - u.lastSeen > 5000) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // При смене тикета сбрасываем индикатор — иначе подвисший из старого
+  // тикета мог бы показаться в новом до естественного пруна.
+  useEffect(() => {
+    setTypingUsers(new Map());
+  }, [ticket.id]);
+
   const authToken = getToken();
   const ordered = useMemo(() => [...messages].reverse(), [messages]);
 
@@ -276,6 +336,11 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
           )
         )}
       </div>
+
+      {/* Typing indicator — между лентой и композером, маленькая полоса
+          с анимированными точками и именем (или маскированным
+          «Администратор» для менеджера). Скрыта, когда никто не печатает. */}
+      <TypingIndicator users={typingUsers} viewerRole={viewerRole} />
 
       {/* Composer */}
       <Composer
