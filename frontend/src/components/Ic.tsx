@@ -361,8 +361,11 @@ const PATHS: Record<IconName, ReactElement> = {
   ),
   check_double: (
     <>
-      <path d="m18 6-11 11-5-5" />
-      <path d="m18 13-7 7-5-5" />
+      {/* Lucide CheckCheck: полная галочка + правая часть второй —
+          визуально читается как «галочка с хвостом», без наезда друг
+          на друга, как в Telegram. */}
+      <path d="M18 6 7 17l-5-5" />
+      <path d="m22 10-7.5 7.5L13 16" />
     </>
   ),
   expand: (

@@ -57,9 +57,26 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
 
   const messages = messagesQ.data?.data ?? [];
 
-  // Список ID непрочитанных сообщений. Используем join как стабильный
-  // dep для useEffect — он меняется при любом сдвиге набора (приход нового
-  // сообщения, прочтение части и т. п.).
+  // mark-read с двух сторон, оба идемпотентны (на бэке whereNotIn по
+  // уже прочитанным):
+  //
+  // 1) При каждом открытии тикета — БЕЗУСЛОВНО. Бэк сам определит, что
+  //    нужно отметить. Так мы покрываем случаи, когда фронт о каких-то
+  //    сообщениях не знает (например, до них не доскроллено и cursor
+  //    pagination ещё не подтянул, или у m.author не загружен relation
+  //    и фронт ошибочно не считает их непрочитанными).
+  // 2) При появлении новых непрочитанных в уже открытом тикете
+  //    (real-time push) — догоняем и помечаем их тоже.
+
+  const markedTicketRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (markedTicketRef.current === ticket.id) return;
+    if (markReadMut.isPending) return;
+    markReadMut.mutate();
+    markedTicketRef.current = ticket.id;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.id]);
+
   const unreadIdsKey = useMemo(
     () =>
       messages
@@ -75,10 +92,6 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
     [messages, currentUserId],
   );
 
-  // mark-read срабатывает на ЛЮБОЕ изменение набора непрочитанных, а не
-  // только на переход «нет → есть». Если новые сообщения долетают по
-  // ws в уже открытом тикете, набор unread меняется (новый id появляется
-  // в строке) → effect отрабатывает → бэк отметит и эти.
   useEffect(() => {
     if (unreadIdsKey.length > 0 && !markReadMut.isPending) {
       markReadMut.mutate();

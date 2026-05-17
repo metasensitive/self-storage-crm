@@ -112,7 +112,18 @@ export function MessageBubble({
     >
       {!isMine && <Avatar name={avatarName} src={avatarSrc} />}
 
-      <div style={{ maxWidth: '70%', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div
+        style={{
+          maxWidth: '70%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          // shrink-to-fit + прижать колонку к нужной стороне. Без этого
+          // бабл «своего» сообщения растягивался по ширине meta-строки
+          // (с иконками edit/delete), давая пустое место справа от текста.
+          alignItems: isMine ? 'flex-end' : 'flex-start',
+        }}
+      >
         {!isMine && (
           <div className="t-small dim" style={{ paddingLeft: 4 }}>
             {displayedName}
