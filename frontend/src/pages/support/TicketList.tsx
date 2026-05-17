@@ -51,8 +51,8 @@ export function TicketList({ tickets, selectedId, onSelect, showManager }: Ticke
             onClick={() => onSelect(t.id)}
             style={{
               display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
+              alignItems: 'flex-start',
+              gap: 10,
               padding: '12px 14px',
               textAlign: 'left',
               background: active ? 'var(--bg-muted)' : 'transparent',
@@ -64,79 +64,104 @@ export function TicketList({ tickets, selectedId, onSelect, showManager }: Ticke
               width: '100%',
             }}
           >
+            {showManager && (
+              <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                <Avatar name={t.manager?.name} src={t.manager?.avatar_url} />
+              </div>
+            )}
+
+            {/* Telegram-style row: тема + время на одной baseline-строке,
+                ниже превью + badge — без зарезервированной правой колонки,
+                время естественно прижато к правому краю карточки. */}
             <div
               style={{
+                flex: 1,
+                minWidth: 0,
                 display: 'flex',
-                alignItems: 'center',
-                gap: 8,
+                flexDirection: 'column',
+                gap: 3,
               }}
             >
-              {showManager && (
-                <Avatar
-                  name={t.manager?.name}
-                  src={t.manager?.avatar_url}
-                />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 8,
+                }}
+              >
                 <div
-                  className="t-body"
                   style={{
-                    fontWeight: t.unread_count > 0 ? 600 : 500,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    flex: 1,
+                    minWidth: 0,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
+                    overflow: 'hidden',
                   }}
                 >
                   {t.is_closed && (
-                    <Ic name="lock" size={12} className="" />
+                    <span style={{ flexShrink: 0, color: 'var(--ink-3)', display: 'flex' }}>
+                      <Ic name="lock" size={12} />
+                    </span>
                   )}
                   <span
+                    className="t-body"
                     style={{
+                      fontWeight: t.unread_count > 0 ? 600 : 500,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
+                      minWidth: 0,
                     }}
                   >
                     {t.subject}
                   </span>
                 </div>
-                {showManager && t.manager?.name && (
-                  <div
-                    className="t-small dim"
-                    style={{
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {t.manager.name}
-                  </div>
-                )}
+                <span
+                  className="t-small dim"
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  {relTime(t.last_message_at ?? t.created_at)}
+                </span>
               </div>
+
+              {showManager && t.manager?.name && (
+                <div
+                  className="t-small dim"
+                  style={{
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {t.manager.name}
+                </div>
+              )}
+
               <div
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-end',
-                  gap: 4,
-                  flexShrink: 0,
-                  // Фиксированная ширина колонки времени — иначе при сменах
-                  // «только что → 2 мин → 6 ч → 2 дн» правый край съезжает
-                  // и тема скачет по ширине. min-width делает выравнивание
-                  // вертикально-ровным.
-                  minWidth: 52,
-                  textAlign: 'right',
+                  alignItems: 'baseline',
+                  gap: 8,
+                  minHeight: 16,
                 }}
               >
-                <span className="t-small dim" style={{ whiteSpace: 'nowrap' }}>
-                  {relTime(t.last_message_at ?? t.created_at)}
+                <span
+                  className="t-small dim"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {t.last_message_preview ?? ''}
                 </span>
                 {t.unread_count > 0 && (
                   <span
                     style={{
+                      flexShrink: 0,
                       minWidth: 18,
                       height: 18,
                       padding: '0 6px',
@@ -154,19 +179,6 @@ export function TicketList({ tickets, selectedId, onSelect, showManager }: Ticke
                 )}
               </div>
             </div>
-            {t.last_message_preview && (
-              <div
-                className="t-small dim"
-                style={{
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  paddingLeft: showManager ? 40 : 0,
-                }}
-              >
-                {t.last_message_preview}
-              </div>
-            )}
           </button>
         );
       })}

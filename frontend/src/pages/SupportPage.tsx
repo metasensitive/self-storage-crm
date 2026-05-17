@@ -10,10 +10,13 @@ import { Select } from '@/components/ui/Select';
 import { useAuth } from '@/contexts/AuthContext';
 import { supportApi, type SupportTicketStatus } from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
+import { pluralize } from '@/lib/format';
 import { useRealtimeEvent } from '@/lib/useRealtimeEvent';
 import { TicketList } from './support/TicketList';
 import { TicketView } from './support/TicketView';
 import { NewTicketModal } from './support/NewTicketModal';
+
+const pluralizeTickets = (n: number) => pluralize(n, ['тикет', 'тикета', 'тикетов']);
 
 export default function SupportPage() {
   const { user } = useAuth();
@@ -136,16 +139,31 @@ export default function SupportPage() {
           >
             <div
               style={{
-                padding: 12,
+                padding: '18px 16px 14px',
                 borderBottom: '1px solid var(--line)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 8,
+                gap: 14,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1 }} className="h-2">
-                  {isAdmin ? 'Все тикеты' : 'Мои тикеты'}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  minHeight: 32,
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span className="h-2" style={{ fontSize: 17, lineHeight: 1.2 }}>
+                    {isAdmin ? 'Все тикеты' : 'Мои тикеты'}
+                  </span>
+                  <span className="t-small dim">
+                    {tickets.length === 0
+                      ? 'пусто'
+                      : `${tickets.length} ${pluralizeTickets(tickets.length)}`}
+                  </span>
                 </div>
                 {!isAdmin && (
                   <Button
