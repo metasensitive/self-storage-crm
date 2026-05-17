@@ -9,23 +9,42 @@ interface TicketListProps {
   onSelect: (id: number) => void;
   /** Показывать имя менеджера в строке (для админа). */
   showManager: boolean;
+  /** Нужен чтобы понять, чьё последнее сообщение — для check/check_double. */
+  currentUserId: number;
 }
 
-function relTime(iso: string | null | undefined): string {
+/**
+ * Telegram-style формат времени последнего сообщения в карточке тикета:
+ * - сегодня → «14:32»
+ * - вчера → «вчера»
+ * - в пределах недели → короткое название дня недели на русском (пн, вт, …)
+ * - в этом году → «17 мая»
+ * - старше → «17 мая 2025»
+ *
+ * Раньше тут было relTime («6 ч» и т. п.) — короче, но менее очевидно для
+ * пользователя, особенно когда сообщение было «4 часа назад в 02:00» —
+ * абсолютное время понятнее.
+ */
+function lastMessageTime(iso: string | null | undefined): string {
   if (!iso) return '';
-  const diff = Date.now() - dayjs(iso).valueOf();
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return 'только что';
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} мин`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} ч`;
-  const d = Math.floor(hr / 24);
-  if (d < 7) return `${d} дн`;
-  return dayjs(iso).format('D MMM');
+  const d = dayjs(iso);
+  if (!d.isValid()) return '';
+  const now = dayjs();
+  const dayDiff = now.startOf('day').diff(d.startOf('day'), 'day');
+  if (dayDiff === 0) return d.format('HH:mm');
+  if (dayDiff === 1) return 'вчера';
+  if (dayDiff < 7) return d.format('dd');
+  if (d.year() === now.year()) return d.format('D MMM');
+  return d.format('D MMM YYYY');
 }
 
-export function TicketList({ tickets, selectedId, onSelect, showManager }: TicketListProps) {
+export function TicketList({
+  tickets,
+  selectedId,
+  onSelect,
+  showManager,
+  currentUserId,
+}: TicketListProps) {
   if (tickets.length === 0) {
     return (
       <div
@@ -44,6 +63,12 @@ export function TicketList({ tickets, selectedId, onSelect, showManager }: Ticke
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       {tickets.map((t) => {
         const active = t.id === selectedId;
+        // Индикатор прочтения показываем только если последнее сообщение в
+        // тикете — обычное (не системное) и принадлежит текущему пользователю.
+        // Чужое последнее сообщение → индикатор скрыт (как в Telegram).
+        const lm = t.last_message;
+        const showReceipt =
+          lm && lm.type === 'message' && lm.author_id === currentUserId;
         return (
           <button
             key={t.id}
@@ -70,9 +95,6 @@ export function TicketList({ tickets, selectedId, onSelect, showManager }: Ticke
               </div>
             )}
 
-            {/* Telegram-style row: тема + время на одной baseline-строке,
-                ниже превью + badge — без зарезервированной правой колонки,
-                время естественно прижато к правому краю карточки. */}
             <div
               style={{
                 flex: 1,
@@ -117,12 +139,33 @@ export function TicketList({ tickets, selectedId, onSelect, showManager }: Ticke
                     {t.subject}
                   </span>
                 </div>
-                <span
+                <div
                   className="t-small dim"
-                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={{
+                    flexShrink: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
                 >
-                  {relTime(t.last_message_at ?? t.created_at)}
-                </span>
+                  {showReceipt && (
+                    <span
+                      title={lm.read_by_others ? 'Прочитано' : 'Доставлено'}
+                      style={{
+                        display: 'inline-flex',
+                        color: lm.read_by_others ? 'var(--accent)' : 'var(--ink-3)',
+                      }}
+                    >
+                      <Ic
+                        name={lm.read_by_others ? 'check_double' : 'check'}
+                        size={12}
+                      />
+                    </span>
+                  )}
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    {lastMessageTime(t.last_message_at ?? t.created_at)}
+                  </span>
+                </div>
               </div>
 
               {showManager && t.manager?.name && (

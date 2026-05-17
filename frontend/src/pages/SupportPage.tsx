@@ -197,6 +197,7 @@ export default function SupportPage() {
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                   showManager={isAdmin}
+                  currentUserId={user.id}
                 />
               )}
             </div>

@@ -10,6 +10,13 @@ export interface SupportTicketUser {
   avatar_url: string | null;
 }
 
+export interface SupportTicketLastMessage {
+  id: number;
+  type: SupportMessageType;
+  author_id: number;
+  read_by_others: boolean;
+}
+
 export interface SupportTicket {
   id: number;
   subject: string;
@@ -18,6 +25,8 @@ export interface SupportTicket {
   manager?: SupportTicketUser;
   last_message_at: string | null;
   last_message_preview: string | null;
+  /** Метаданные последнего сообщения — для индикатора прочитано/непрочитано. */
+  last_message?: SupportTicketLastMessage | null;
   unread_count: number;
   closed_at: string | null;
   created_at: string;

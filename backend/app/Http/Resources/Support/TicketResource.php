@@ -24,6 +24,19 @@ class TicketResource extends JsonResource
             ]),
             'last_message_at' => $this->last_message_at?->toISOString(),
             'last_message_preview' => $this->last_message_preview,
+            // Метаданные последнего сообщения тикета — для индикатора
+            // прочитано/непрочитано в списке. Доступны только если
+            // явно eager-loaded ('lastMessage' + withCount read_by_others).
+            'last_message' => $this->whenLoaded('lastMessage', function () {
+                if (!$this->lastMessage) return null;
+                return [
+                    'id' => (int) $this->lastMessage->id,
+                    'type' => $this->lastMessage->type ?? 'message',
+                    'author_id' => (int) $this->lastMessage->author_id,
+                    'read_by_others' =>
+                        ((int) ($this->lastMessage->read_by_others_count ?? 0)) > 0,
+                ];
+            }),
             // Считаем непрочитанные для текущего viewer'a — у admin'а и
             // у менеджера-владельца разные счётчики на один и тот же тикет.
             'unread_count' => $viewer ? $this->unreadCountFor($viewer) : 0,
