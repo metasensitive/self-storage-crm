@@ -49,7 +49,17 @@ class NotificationDispatcher
 
     /**
      * Общая отправка: пишет в БД через database channel + бросает
-     * NotificationReceived best-effort на личный канал каждого получателя.
+     * NotificationReceived через terminating-callback на каждый канал
+     * получателя.
+     *
+     * Запись в БД остаётся синхронной — это быстро (один INSERT на user'а
+     * с одним общим payload'ом), и нужно чтобы /notifications GET сразу
+     * после POST'а уже содержал свежие записи.
+     *
+     * А вот broadcast'ы откладываем в `app()->terminating()`: цикл из N
+     * push'ов в WebSocket выполнится ПОСЛЕ того, как Laravel отдал http-
+     * ответ. Раньше N синхронных broadcast'ов в request-cycle давали
+     * N × 200-500 ms задержки на чате при рассылке всем админам.
      */
     private static function send($recipients, Notification $notification): void
     {
@@ -57,18 +67,27 @@ class NotificationDispatcher
             return;
         }
         NotificationFacade::send($recipients, $notification);
-        foreach ($recipients as $user) {
-            // Broadcast — best-effort: если reverb недоступен, в БД уведомление
-            // всё равно лежит, колокольчик подтянет его на следующем polling-е.
-            // Без try/catch падение broadcast уронило бы весь http-запрос.
-            try {
-                broadcast(new NotificationReceived($user->id));
-            } catch (Throwable $e) {
-                Log::warning('broadcast NotificationReceived failed', [
-                    'user_id' => $user->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+
+        // Списываем id'ы заранее — collection переживёт terminating-callback,
+        // но не хочется тащить туда полные user-модели и связанные данные.
+        $userIds = collect($recipients)->pluck('id')->all();
+        try {
+            app()->terminating(function () use ($userIds) {
+                foreach ($userIds as $userId) {
+                    try {
+                        broadcast(new NotificationReceived($userId));
+                    } catch (Throwable $e) {
+                        Log::warning('broadcast NotificationReceived failed', [
+                            'user_id' => $userId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            });
+        } catch (Throwable $e) {
+            Log::warning('NotificationDispatcher afterResponse register failed', [
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }
