@@ -146,21 +146,6 @@ export function MessageBubble({
         {!isMine && (
           <div className="t-small dim" style={{ paddingLeft: 4 }}>
             {displayedName}
-            {role === 'admin' && (
-              <span
-                style={{
-                  marginLeft: 6,
-                  fontSize: 10,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  padding: '1px 6px',
-                  background: 'var(--bg-muted)',
-                  borderRadius: 999,
-                }}
-              >
-                админ
-              </span>
-            )}
           </div>
         )}
 
