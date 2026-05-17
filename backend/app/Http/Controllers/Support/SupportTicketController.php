@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Support;
 
+use App\Events\Support\SupportTyping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Support\StoreTicketRequest;
 use App\Http\Requests\Support\UpdateTicketStatusRequest;
@@ -10,6 +11,9 @@ use App\Models\SupportTicket;
 use App\Services\SupportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Throwable;
+use Illuminate\Support\Facades\Log;
 
 class SupportTicketController extends Controller
 {
@@ -171,6 +175,35 @@ class SupportTicketController extends Controller
         return response()->json([
             'data' => ['unread' => (int) $count],
         ]);
+    }
+
+    /**
+     * Эфемерный «typing»-сигнал. В БД ничего не пишется, только broadcast
+     * подписчикам канала тикета. Композер на фронте сам дебаунсит вызовы.
+     * На закрытый тикет писать всё равно нельзя — индикатор не нужен.
+     *
+     * @tags Поддержка
+     */
+    public function typing(Request $request, SupportTicket $ticket): Response
+    {
+        $this->authorizeTicket($request, $ticket);
+        if ($ticket->isClosed()) {
+            return response()->noContent();
+        }
+        $user = $request->user();
+        try {
+            broadcast(new SupportTyping(
+                $ticket->id,
+                $user->id,
+                (string) $user->name,
+                (string) $user->role,
+            ));
+        } catch (Throwable $e) {
+            // best-effort, как и остальной broadcast в поддержке: падение
+            // Reverb не должно ронять http-запрос.
+            Log::warning('broadcast SupportTyping failed', ['error' => $e->getMessage()]);
+        }
+        return response()->noContent();
     }
 
     private function authorizeTicket(Request $request, SupportTicket $ticket): void
