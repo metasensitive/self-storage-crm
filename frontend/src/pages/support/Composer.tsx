@@ -4,7 +4,8 @@ import { Textarea } from '@/components/ui/Input';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Ic } from '@/components/Ic';
 import { useToast } from '@/components/ui/Toast';
-import { supportApi } from '@/api/support';
+import { useAuth } from '@/contexts/AuthContext';
+import { supportApi, type MessagesListResponse, type SupportMessage } from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
 import { attachmentIcon, attachmentIconColor, attachmentLabel } from './utils';
 
@@ -40,6 +41,7 @@ const TYPING_THROTTLE_MS = 3000;
 export function Composer({ ticketId, currentUserId, disabled, disabledHint }: ComposerProps) {
   const qc = useQueryClient();
   const toast = useToast();
+  const { user } = useAuth();
   const [body, setBody] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -71,15 +73,107 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
     el.style.overflowY = el.scrollHeight > COMPOSER_MAX_H ? 'auto' : 'hidden';
   }, [body]);
 
+  // Optimistic UI на отправку сообщения.
+  //
+  // До этого фикса пользователь жал «Отправить», composer очищался, но
+  // сообщение появлялось в ленте только после POST → invalidate → refetch.
+  // На сетевой 200-500ms + дополнительный roundtrip за refetch — выходило
+  // 1-2 сек видимой задержки даже на быстром бэке.
+  //
+  // Теперь:
+  //  1. onMutate — кладём фейковый message с tempId (отрицательным,
+  //     чтобы не конфликтовать с серверными id) в кэш мгновенно. UI
+  //     перерисовывается сразу — сообщение появляется в ленте до того,
+  //     как сервер ответил.
+  //  2. onSuccess — точечно подменяем temp на серверный объект
+  //     (queryData-merge без refetch'а). Для списка тикетов
+  //     дополнительно инвалидируем — там обновится last_message_preview.
+  //  3. onError — откатываем temp, показываем toast.
+  //
+  // Если параллельно по ws прилетит broadcast 'message.created' от
+  // самого себя, useSupportTicketChannel инвалидирует messages и
+  // refetch подтянет server-truth — temp в любом случае останется
+  // согласованным с реальным сообщением.
   const sendMut = useMutation({
     mutationFn: (payload: { body?: string; attachments?: File[] }) =>
       supportApi.messages.send(ticketId, payload),
-    onSuccess: () => {
+    onMutate: async (payload) => {
+      const queryKey = queryKeys.support.messages(ticketId, currentUserId);
+      // Отменяем in-flight рефетчи, чтобы они не затёрли наш optimistic data.
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<MessagesListResponse>(queryKey);
+
+      const tempId = -Date.now(); // отрицательный → не пересечётся с реальным
+      const now = new Date().toISOString();
+      const tempMessage: SupportMessage = {
+        id: tempId,
+        type: 'message',
+        body: payload.body ?? null,
+        is_deleted: false,
+        author: user
+          ? {
+              id: user.id,
+              name: user.name,
+              role: user.role,
+              avatar_url: user.avatar_url,
+            }
+          : undefined,
+        attachments: (payload.attachments ?? []).map((f, i) => ({
+          id: -(Date.now() + i + 1),
+          original_name: f.name,
+          mime: f.type || 'application/octet-stream',
+          size_bytes: f.size,
+          is_image: f.type.startsWith('image/'),
+          // Реальный download_url придёт с сервера; до подтверждения
+          // оставляем пустой, AttachmentPreview всё равно не сможет
+          // ничего скачать — но имя/иконку покажет.
+          download_url: '',
+        })),
+        edited_at: null,
+        deleted_at: null,
+        read_by: [],
+        created_at: now,
+      };
+
+      qc.setQueryData<MessagesListResponse>(queryKey, (old) => {
+        // API отдаёт сообщения desc (новые сверху) — добавляем temp в начало.
+        if (!old) {
+          return { data: [tempMessage], meta: { next_cursor: null, has_more: false } };
+        }
+        return { ...old, data: [tempMessage, ...old.data] };
+      });
+
+      // Composer очищаем сразу — мы оптимистично уверены в успехе.
       setBody('');
       setFiles([]);
-      qc.invalidateQueries({ queryKey: queryKeys.support.all });
+
+      return { previous, tempId, queryKey };
     },
-    onError: (err: unknown) => {
+    onSuccess: (serverMessage, _vars, ctx) => {
+      if (!ctx) return;
+      // Точечная подмена temp на серверное сообщение — без refetch'а.
+      qc.setQueryData<MessagesListResponse>(ctx.queryKey, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          data: old.data.map((m) => (m.id === ctx.tempId ? serverMessage : m)),
+        };
+      });
+      // Список тикетов — там last_message_preview/last_message_at
+      // изменились. Инвалидируем только tickets, без messages/unread.
+      qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
+    },
+    onError: (err: unknown, _vars, ctx) => {
+      // Откатываем optimistic state. Composer уже очищен — на ошибке
+      // покажем тост, юзер сам решит написать заново.
+      if (ctx?.previous) {
+        qc.setQueryData(ctx.queryKey, ctx.previous);
+      } else if (ctx) {
+        qc.setQueryData<MessagesListResponse>(ctx.queryKey, (old) => {
+          if (!old) return old;
+          return { ...old, data: old.data.filter((m) => m.id !== ctx.tempId) };
+        });
+      }
       const m = err instanceof Error ? err.message : 'Не удалось отправить';
       toast.error(m);
     },
