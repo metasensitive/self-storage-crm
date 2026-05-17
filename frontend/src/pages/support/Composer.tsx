@@ -23,6 +23,14 @@ interface ComposerProps {
  * Поле отправки сообщения. Auto-grow textarea, прикрепление файлов
  * через кнопку или drag&drop, превью выбранных, Ctrl/Cmd+Enter отправляет.
  */
+// Высоты композера: при пустом инпуте — одна строка, по мере набора
+// растём до ~10 визуальных строк, дальше включается скролл. scrollHeight
+// учитывает реальный wrap-перенос (одна логическая строка из 200 символов
+// рендерится как несколько визуальных) — поэтому работает лучше, чем
+// rows={text.split('\n').length}.
+const COMPOSER_MIN_H = 40;
+const COMPOSER_MAX_H = 200;
+
 export function Composer({ ticketId, currentUserId, disabled, disabledHint }: ComposerProps) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -30,6 +38,19 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow: пересчитываем высоту на каждое изменение body. Сбрасываем
+  // в 'auto' чтобы scrollHeight отражал реальный content height, затем
+  // зажимаем в [MIN, MAX] и включаем скролл только при превышении.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.min(Math.max(el.scrollHeight, COMPOSER_MIN_H), COMPOSER_MAX_H);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_H ? 'auto' : 'hidden';
+  }, [body]);
 
   const sendMut = useMutation({
     mutationFn: (payload: { body?: string; attachments?: File[] }) =>
@@ -185,18 +206,23 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
           style={{ width: 40, height: 40, flexShrink: 0 }}
         />
         <Textarea
+          ref={textareaRef}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           placeholder="Напишите сообщение… (Ctrl+Enter — отправить, Ctrl+V — вставить скриншот)"
-          rows={Math.min(6, Math.max(1, body.split('\n').length))}
+          rows={1}
           style={{
             flex: 1,
             resize: 'none',
-            minHeight: 40,
+            minHeight: COMPOSER_MIN_H,
+            maxHeight: COMPOSER_MAX_H,
             padding: '9px 12px',
             lineHeight: 1.4,
+            // overflowY ставится из useEffect (auto при переполнении,
+            // hidden пока высота не достигла MAX) — здесь дефолт hidden.
+            overflowY: 'hidden',
           }}
         />
         <Button
