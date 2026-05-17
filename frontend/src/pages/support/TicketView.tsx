@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Ic } from '@/components/Ic';
-import { supportApi, type SupportMessage, type SupportTicket } from '@/api/support';
+import {
+  supportApi,
+  type SupportMessage,
+  type SupportTicket,
+  type TicketsListResponse,
+} from '@/api/support';
 import { getToken } from '@/api/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,17 +57,57 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
     staleTime: 5_000,
   });
 
+  // Optimistic mark-read:
+  // 1) обнуляем unread_count на этом тикете во всех кэшированных
+  //    списках (их может быть несколько — по разным фильтрам status);
+  // 2) уменьшаем общий счётчик в сайдбаре на ту же дельту.
+  // Бейджи реагируют мгновенно. Раньше badge ждал POST + 2× refetch'а
+  // ≈ 1.5-3 сек до пересчёта.
   const markReadMut = useMutation({
     mutationFn: () => supportApi.tickets.markRead(ticket.id),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['support', 'tickets'] });
+      await qc.cancelQueries({ queryKey: ['support', 'unread'] });
+
+      let removed = 0;
+      const prevTickets = qc.getQueriesData<TicketsListResponse>({
+        queryKey: ['support', 'tickets'],
+      });
+      prevTickets.forEach(([key, data]) => {
+        if (!data) return;
+        qc.setQueryData<TicketsListResponse>(key, {
+          ...data,
+          data: data.data.map((t) => {
+            if (t.id !== ticket.id) return t;
+            if (t.unread_count > removed) removed = t.unread_count;
+            return { ...t, unread_count: 0 };
+          }),
+        });
+      });
+
+      const prevUnread = qc.getQueriesData<{ unread: number }>({
+        queryKey: ['support', 'unread'],
+      });
+      if (removed > 0) {
+        prevUnread.forEach(([key, data]) => {
+          if (!data) return;
+          qc.setQueryData(key, { unread: Math.max(0, data.unread - removed) });
+        });
+      }
+
+      return { prevTickets, prevUnread };
+    },
+    onError: (_err, _vars, ctx) => {
+      // Откат: восстанавливаем все снимки. Mark-read идемпотентен и
+      // не критичен, но без отката бейдж бы остался в «оптимистичной»
+      // зелёной зоне до следующего polling-а (30 сек).
+      ctx?.prevTickets.forEach(([key, data]) => qc.setQueryData(key, data));
+      ctx?.prevUnread.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
     onSuccess: () => {
-      // Mark-read со стороны viewer'а влияет на:
-      //  - tickets[] — unread_count для этого тикета упадёт до 0;
-      //  - unread — общий счётчик в сайдбаре уменьшится;
-      // На свои read_by записи в собственной messages-ленте мы НЕ смотрим
-      // (`hasReadByOther` всегда проверяет r.user_id !== currentUserId),
-      // поэтому messages-query инвалидировать не нужно. Собеседник
-      // получает SupportTicketUpdated('read') через ws и инвалидирует
-      // свою ленту в useSupportTicketChannel.
+      // Background refresh — оптимистичный апдейт уже на экране.
+      // Сетевой ответ просто заменит оптимистичные значения настоящими
+      // (которые должны совпасть). Не блокирует UI.
       qc.invalidateQueries({ queryKey: ['support', 'tickets'] });
       qc.invalidateQueries({ queryKey: ['support', 'unread'] });
     },

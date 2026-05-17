@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useAuth } from '@/contexts/AuthContext';
-import { notificationsApi, type AppNotification } from '@/api/notifications';
+import {
+  notificationsApi,
+  type AppNotification,
+  type NotificationsListResponse,
+} from '@/api/notifications';
 import { queryKeys } from '@/lib/queryKeys';
 import { useRealtimeEvent } from '@/lib/useRealtimeEvent';
 import { Ic } from './Ic';
@@ -163,12 +167,60 @@ export function NotificationBell() {
     };
   }, [open]);
 
+  // Optimistic mark-read: бейдж непрочитанных пропадает мгновенно при
+  // открытии/закрытии попапа или клике по конкретной нотификации.
+  // Раньше тут был обычный invalidate-on-success, и до пересчёта badge
+  // ждал POST + GET = ~1.5-3 сек (2× сетевой roundtrip до Railway).
   const markReadMut = useMutation({
     mutationFn: notificationsApi.markRead,
+    onMutate: async (notificationId: string) => {
+      const queryKey = queryKeys.notifications.list(user?.id);
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<NotificationsListResponse>(queryKey);
+      qc.setQueryData<NotificationsListResponse>(queryKey, (old) => {
+        if (!old) return old;
+        const target = old.data.find((n) => n.id === notificationId);
+        // Уже прочитано — нечего двигать.
+        if (!target || target.read_at) return old;
+        return {
+          ...old,
+          data: old.data.map((n) =>
+            n.id === notificationId ? { ...n, read_at: new Date().toISOString() } : n,
+          ),
+          meta: {
+            ...old.meta,
+            unread_count: Math.max(0, old.meta.unread_count - 1),
+          },
+        };
+      });
+      return { previous, queryKey };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(ctx.queryKey, ctx.previous);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications.all }),
   });
+
   const markAllMut = useMutation({
     mutationFn: notificationsApi.markAllRead,
+    onMutate: async () => {
+      const queryKey = queryKeys.notifications.list(user?.id);
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<NotificationsListResponse>(queryKey);
+      const now = new Date().toISOString();
+      qc.setQueryData<NotificationsListResponse>(queryKey, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          data: old.data.map((n) => (n.read_at ? n : { ...n, read_at: now })),
+          meta: { ...old.meta, unread_count: 0 },
+        };
+      });
+      return { previous, queryKey };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(ctx.queryKey, ctx.previous);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications.all }),
   });
 
