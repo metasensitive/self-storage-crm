@@ -164,6 +164,9 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
         </div>
       )}
 
+      {/* Composer row: всё фиксированной высоты 40px при одной строке текста,
+          alignItems: flex-end — при многострочном вводе textarea растёт вверх,
+          а скрепка и «Отправить» остаются прижатыми к нижнему краю. */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
         <input
           ref={fileInputRef}
@@ -179,6 +182,7 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
           icon="paperclip"
           label="Прикрепить файл"
           onClick={() => fileInputRef.current?.click()}
+          style={{ width: 40, height: 40, flexShrink: 0 }}
         />
         <Textarea
           value={body}
@@ -187,7 +191,13 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
           onPaste={onPaste}
           placeholder="Напишите сообщение… (Ctrl+Enter — отправить, Ctrl+V — вставить скриншот)"
           rows={Math.min(6, Math.max(1, body.split('\n').length))}
-          style={{ flex: 1, resize: 'none' }}
+          style={{
+            flex: 1,
+            resize: 'none',
+            minHeight: 40,
+            padding: '9px 12px',
+            lineHeight: 1.4,
+          }}
         />
         <Button
           variant="primary"
@@ -195,6 +205,7 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
           loading={sendMut.isPending}
           disabled={!canSend}
           onClick={submit}
+          style={{ height: 40, flexShrink: 0 }}
         >
           Отправить
         </Button>

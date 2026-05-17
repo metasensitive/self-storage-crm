@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Ic } from '@/components/Ic';
 import { Textarea } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { supportApi, type SupportMessage } from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
@@ -26,8 +27,6 @@ interface MessageBubbleProps {
   hasReadByOther: boolean;
 }
 
-// Время бабла рендерим через fmtTime (Intl, локальный TZ браузера).
-
 export function MessageBubble({
   message,
   currentUserId,
@@ -40,6 +39,7 @@ export function MessageBubble({
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body ?? '');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isMine = message.author?.id === currentUserId;
   const isDeleted = message.is_deleted;
@@ -70,6 +70,7 @@ export function MessageBubble({
     mutationFn: () => supportApi.messages.delete(message.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.support.all });
+      setConfirmDelete(false);
     },
     onError: (err: unknown) => {
       const m = err instanceof Error ? err.message : 'Не удалось удалить';
@@ -86,6 +87,27 @@ export function MessageBubble({
   const avatarSrc = maskAdmin ? null : message.author?.avatar_url;
   const avatarName = maskAdmin ? 'Администратор' : message.author?.name;
   void initials; // используется в Avatar
+
+  const canSaveEdit =
+    !!draft.trim() && draft.trim() !== (message.body ?? '') && !updateMut.isPending;
+
+  function cancelEdit() {
+    setDraft(message.body ?? '');
+    setEditing(false);
+  }
+  function saveEdit() {
+    if (!canSaveEdit) return;
+    updateMut.mutate(draft.trim());
+  }
+  function onEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      saveEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit();
+    }
+  }
 
   // Цвета бабла: свои — акцентом, чужие — нейтральные. У админа лёгкий
   // визуальный маркер ролью (только для чужих сообщений админа).
@@ -118,9 +140,6 @@ export function MessageBubble({
           display: 'flex',
           flexDirection: 'column',
           gap: 4,
-          // shrink-to-fit + прижать колонку к нужной стороне. Без этого
-          // бабл «своего» сообщения растягивался по ширине meta-строки
-          // (с иконками edit/delete), давая пустое место справа от текста.
           alignItems: isMine ? 'flex-end' : 'flex-start',
         }}
       >
@@ -145,74 +164,105 @@ export function MessageBubble({
           </div>
         )}
 
-        <div
-          style={{
-            padding: '8px 12px',
-            border: '1px solid',
-            borderRadius: 14,
-            borderBottomRightRadius: isMine ? 4 : 14,
-            borderBottomLeftRadius: isMine ? 14 : 4,
-            ...bubbleStyle,
-          }}
-        >
-          {isDeleted ? (
-            <div className="t-body" style={{ fontStyle: 'italic', opacity: 0.7 }}>
-              Сообщение удалено
+        {editing ? (
+          /* Режим редактирования — отдельный нейтральный контейнер вместо
+             акцентного бабла. На цветной подложке ghost-кнопка «Отмена»
+             терялась (white-on-white). Контейнер с явными bg/border/ink-цветами
+             даёт читаемый контраст для обеих кнопок. */
+          <div
+            style={{
+              width: 360,
+              maxWidth: '100%',
+              background: 'var(--bg-elev)',
+              color: 'var(--ink)',
+              border: '1px solid var(--line)',
+              borderRadius: 14,
+              borderBottomRightRadius: isMine ? 4 : 14,
+              borderBottomLeftRadius: isMine ? 14 : 4,
+              padding: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            }}
+          >
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={onEditKeyDown}
+              rows={Math.min(8, Math.max(2, draft.split('\n').length))}
+              autoFocus
+              style={{
+                width: '100%',
+                resize: 'none',
+                minHeight: 60,
+                maxHeight: 220,
+              }}
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span className="t-small dim" style={{ flex: 1 }}>
+                Ctrl+Enter — сохранить, Esc — отменить
+              </span>
+              <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                Отмена
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={updateMut.isPending}
+                disabled={!canSaveEdit}
+                onClick={saveEdit}
+              >
+                Сохранить
+              </Button>
             </div>
-          ) : editing ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 240 }}>
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={3}
-                style={{ color: 'var(--ink)' }}
-              />
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setDraft(message.body ?? '');
-                    setEditing(false);
-                  }}
-                >
-                  Отмена
-                </Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  loading={updateMut.isPending}
-                  disabled={!draft.trim() || draft.trim() === message.body}
-                  onClick={() => updateMut.mutate(draft.trim())}
-                >
-                  Сохранить
-                </Button>
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: '8px 12px',
+              border: '1px solid',
+              borderRadius: 14,
+              borderBottomRightRadius: isMine ? 4 : 14,
+              borderBottomLeftRadius: isMine ? 14 : 4,
+              ...bubbleStyle,
+            }}
+          >
+            {isDeleted ? (
+              <div className="t-body" style={{ fontStyle: 'italic', opacity: 0.7 }}>
+                Сообщение удалено
               </div>
-            </div>
-          ) : (
-            <>
-              {message.body && (
-                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {message.body}
-                </div>
-              )}
-              {message.attachments.length > 0 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    marginTop: message.body ? 8 : 0,
-                  }}
-                >
-                  {message.attachments.map((a) => (
-                    <AttachmentPreview key={a.id} attachment={a} authToken={authToken} />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                {message.body && (
+                  <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {message.body}
+                  </div>
+                )}
+                {message.attachments.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      marginTop: message.body ? 8 : 0,
+                    }}
+                  >
+                    {message.attachments.map((a) => (
+                      <AttachmentPreview key={a.id} attachment={a} authToken={authToken} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         <div
           className="t-small dim"
@@ -227,11 +277,7 @@ export function MessageBubble({
           {message.edited_at && !isDeleted && <span title="Изменено">(изменено)</span>}
           <span>{fmtTime(message.created_at)}</span>
           {isMine && !isDeleted && (
-            <Ic
-              name={hasReadByOther ? 'check_double' : 'check'}
-              size={12}
-              className=""
-            />
+            <Ic name={hasReadByOther ? 'check_double' : 'check'} size={12} className="" />
           )}
           {canEdit && !editing && !isDeleted && (
             <>
@@ -251,9 +297,7 @@ export function MessageBubble({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm('Удалить сообщение?')) deleteMut.mutate();
-                }}
+                onClick={() => setConfirmDelete(true)}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -269,6 +313,37 @@ export function MessageBubble({
           )}
         </div>
       </div>
+
+      <Modal
+        open={confirmDelete}
+        onClose={() => !deleteMut.isPending && setConfirmDelete(false)}
+        title="Удалить сообщение?"
+        width={420}
+        footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button
+              variant="ghost"
+              disabled={deleteMut.isPending}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="danger"
+              icon="trash"
+              loading={deleteMut.isPending}
+              onClick={() => deleteMut.mutate()}
+            >
+              Удалить
+            </Button>
+          </div>
+        }
+      >
+        <p className="t-body">
+          Сообщение будет помечено как удалённое. У собеседника вместо текста
+          отобразится «Сообщение удалено».
+        </p>
+      </Modal>
     </div>
   );
 }
