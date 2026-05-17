@@ -52,6 +52,22 @@ class SupportTicketController extends Controller
                     ]);
                 },
             ])
+            // unread_count для текущего viewer'а — встраиваем как
+            // SELECT-подзапрос в основной запрос вместо N+1 (раньше
+            // TicketResource::toArray() вызывал unreadCountFor() для
+            // каждого тикета и плодил N отдельных COUNT-запросов).
+            // Soft-deleted сообщения исключаются автоматически глобальным
+            // scope'ом trait'а SoftDeletes.
+            ->withCount([
+                'messages as unread_count' => function ($q) use ($user) {
+                    $q->where('author_id', '!=', $user->id)
+                        ->whereNotIn('id', function ($sub) use ($user) {
+                            $sub->select('message_id')
+                                ->from('support_message_reads')
+                                ->where('user_id', $user->id);
+                        });
+                },
+            ])
             ->when($status, fn($q, $v) => $q->where('status', $v))
             // Только что писавшие — сверху; никогда не писавшие — по дате создания.
             ->orderByRaw('COALESCE(last_message_at, created_at) DESC')

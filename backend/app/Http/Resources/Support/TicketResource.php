@@ -37,9 +37,16 @@ class TicketResource extends JsonResource
                         ((int) ($this->lastMessage->read_by_others_count ?? 0)) > 0,
                 ];
             }),
-            // Считаем непрочитанные для текущего viewer'a — у admin'а и
-            // у менеджера-владельца разные счётчики на один и тот же тикет.
-            'unread_count' => $viewer ? $this->unreadCountFor($viewer) : 0,
+            // Непрочитанные для текущего viewer'а. В списке (controller'ом
+            // index) подсчёт встраивается одним SELECT-подзапросом через
+            // ->withCount('messages as unread_count' => ...) — атрибут
+            // сразу присутствует на модели, никаких лишних запросов.
+            // Для одиночных эндпоинтов (show/store/updateStatus) атрибута
+            // нет, фоллбэчимся на unreadCountFor() — один доп. SELECT
+            // на один тикет приемлемо.
+            'unread_count' => isset($this->resource->unread_count)
+                ? (int) $this->unread_count
+                : ($viewer ? $this->unreadCountFor($viewer) : 0),
             'closed_at' => $this->closed_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
