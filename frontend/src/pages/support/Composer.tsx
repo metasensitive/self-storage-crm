@@ -5,9 +5,14 @@ import { Button, IconButton } from '@/components/ui/Button';
 import { Ic } from '@/components/Ic';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supportApi, type MessagesListResponse, type SupportMessage } from '@/api/support';
+import {
+  supportApi,
+  type MessagesListResponse,
+  type SupportMessage,
+} from '@/api/support';
 import { queryKeys } from '@/lib/queryKeys';
 import { attachmentIcon, attachmentIconColor, attachmentLabel } from './utils';
+import { authorDisplayName } from './utils';
 
 const MAX_FILES = 5;
 const MAX_KB = 10240;
@@ -18,6 +23,10 @@ interface ComposerProps {
   /** Если тикет закрыт — композер задизаблен с подсказкой. */
   disabled?: boolean;
   disabledHint?: string;
+  /** Сообщение, на которое цитированно отвечаем; null если обычная отправка. */
+  replyTo?: SupportMessage | null;
+  /** Снять reply-режим (✕ на плашке цитаты + после успешной отправки). */
+  onClearReply?: () => void;
 }
 
 /**
@@ -38,10 +47,17 @@ const COMPOSER_MAX_H = 200;
 // мы как минимум раз в 3 сек продлеваем индикатор у собеседника.
 const TYPING_THROTTLE_MS = 3000;
 
-export function Composer({ ticketId, currentUserId, disabled, disabledHint }: ComposerProps) {
+export function Composer({
+  ticketId,
+  currentUserId,
+  disabled,
+  disabledHint,
+  replyTo,
+  onClearReply,
+}: ComposerProps) {
   const qc = useQueryClient();
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, role: viewerRole } = useAuth();
   const [body, setBody] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -95,8 +111,11 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
   // refetch подтянет server-truth — temp в любом случае останется
   // согласованным с реальным сообщением.
   const sendMut = useMutation({
-    mutationFn: (payload: { body?: string; attachments?: File[] }) =>
-      supportApi.messages.send(ticketId, payload),
+    mutationFn: (payload: {
+      body?: string;
+      attachments?: File[];
+      reply_to_message_id?: number;
+    }) => supportApi.messages.send(ticketId, payload),
     onMutate: async (payload) => {
       const queryKey = queryKeys.support.messages(ticketId, currentUserId);
       // Отменяем in-flight рефетчи, чтобы они не затёрли наш optimistic data.
@@ -132,6 +151,20 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
         edited_at: null,
         deleted_at: null,
         read_by: [],
+        // Если отвечаем — кладём reply_to с тем, что уже знаем, чтобы
+        // временное сообщение в ленте сразу рендерило mini-цитату.
+        // Серверный response потом подменит на каноничный объект.
+        reply_to:
+          replyTo && replyTo.id > 0
+            ? {
+                id: replyTo.id,
+                author: replyTo.author
+                  ? { id: replyTo.author.id, name: replyTo.author.name, role: replyTo.author.role }
+                  : null,
+                preview: (replyTo.body ?? '').slice(0, 140),
+                is_deleted: false,
+              }
+            : undefined,
         created_at: now,
       };
 
@@ -146,6 +179,9 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
       // Composer очищаем сразу — мы оптимистично уверены в успехе.
       setBody('');
       setFiles([]);
+      // Reply-режим тоже сбрасываем сразу: пользователь нажал «Отправить»,
+      // дальше отвечать на тот же оригинал смысла нет.
+      onClearReply?.();
 
       return { previous, tempId, queryKey };
     },
@@ -208,6 +244,11 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
     sendMut.mutate({
       body: body.trim() || undefined,
       attachments: files.length > 0 ? files : undefined,
+      // Reply передаём только если оригинал — настоящее сохранённое сообщение
+      // (id > 0). Цитировать optimistic-temp на стороне бэка бессмысленно,
+      // он его никогда не видел. (Маловероятный кейс, но защищаемся.)
+      reply_to_message_id:
+        replyTo && replyTo.id > 0 && replyTo.type === 'message' ? replyTo.id : undefined,
     });
   }
 
@@ -215,8 +256,20 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       submit();
+    } else if (e.key === 'Escape' && replyTo && onClearReply) {
+      // В режиме reply: Esc снимает цитату (без очистки набранного текста).
+      e.preventDefault();
+      onClearReply();
     }
   }
+
+  // При входе в reply-режим фокусируем textarea — пользователь сразу
+  // может писать ответ, не кликая в инпут.
+  useEffect(() => {
+    if (replyTo && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [replyTo?.id]);
 
   /**
    * Paste из буфера. Если в clipboard есть image (например, скриншот
@@ -282,6 +335,70 @@ export function Composer({ ticketId, currentUserId, disabled, disabledHint }: Co
         transition: 'background .12s',
       }}
     >
+      {/* Reply-tray: плашка с цитатой над composer'ом. Виден когда
+          активен reply-режим. Telegram-стиль: тонкий accent-стрипа
+          слева, имя автора + 1 строка превью с ellipsis, ✕ снимает
+          reply. Esc в textarea тоже снимает. */}
+      {replyTo && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 10px',
+            marginBottom: 10,
+            background: 'var(--bg-muted)',
+            borderLeft: '3px solid var(--accent)',
+            borderRadius: 'var(--r-md)',
+          }}
+        >
+          <Ic name="message" size={14} className="" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              className="t-small"
+              style={{
+                fontWeight: 600,
+                color: 'var(--ink)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {authorDisplayName(replyTo.author, viewerRole) ?? 'Сообщение'}
+            </div>
+            <div
+              className="t-small dim"
+              style={{
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {replyTo.is_deleted
+                ? 'Сообщение удалено'
+                : (replyTo.body ?? '') ||
+                  (replyTo.attachments.length > 0 ? '📎 Вложение' : '—')}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onClearReply?.()}
+            aria-label="Снять цитирование"
+            title="Снять цитирование (Esc)"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              display: 'flex',
+              color: 'var(--ink-3)',
+            }}
+          >
+            <Ic name="close" size={14} />
+          </button>
+        </div>
+      )}
+
       {files.length > 0 && (
         <div
           style={{

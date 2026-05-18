@@ -47,6 +47,16 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
   const { role: viewerRole } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
   const [statusModal, setStatusModal] = useState<StatusAction>(null);
+  // Reply-режим: выбранное оригинальное сообщение, на которое отвечаем.
+  // Хранится здесь (а не в Composer'е), потому что:
+  //  - инициируется кликом из MessageBubble в ленте;
+  //  - сбрасывается при свитче тикета;
+  //  - влияет и на Composer (плашка цитаты), и на UX-highlight в ленте.
+  const [replyTo, setReplyTo] = useState<SupportMessage | null>(null);
+  // ID сообщения, к которому только что проскроллили из reply-card —
+  // короткая CSS-вспышка на 1.5 сек, потом сбрасывается. Помогает
+  // пользователю мгновенно найти цитату глазами в длинной ленте.
+  const [flashId, setFlashId] = useState<number | null>(null);
 
   // Real-time подписка на канал тикета — новые сообщения и правки.
   useSupportTicketChannel(ticket.id);
@@ -287,7 +297,22 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
   // тикета мог бы показаться в новом до естественного пруна.
   useEffect(() => {
     setTypingUsers(new Map());
+    // Reply-режим тоже привязан к конкретному тикету.
+    setReplyTo(null);
+    setFlashId(null);
   }, [ticket.id]);
+
+  // Скролл к цитируемому сообщению + короткая вспышка для визуального
+  // выделения. Сообщения рендерятся с id={`msg-${id}`} в ordered map.
+  const jumpToMessage = (messageId: number) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setFlashId(messageId);
+    window.setTimeout(() => {
+      setFlashId((curr) => (curr === messageId ? null : curr));
+    }, 1500);
+  };
 
   const authToken = getToken();
   const ordered = useMemo(() => [...messages].reverse(), [messages]);
@@ -381,21 +406,40 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
             В тикете пока нет сообщений
           </div>
         ) : (
-          ordered.map((m) =>
-            m.type === 'message' ? (
-              <MessageBubble
+          ordered.map((m) => {
+            // ID-обёртка нужна для jumpToMessage (scrollIntoView ищет
+            // по getElementById). Flash-эффект — короткий фон-акцент
+            // через CSS-transition на 1.5 сек после клика по reply-card.
+            const isFlashing = flashId === m.id;
+            return (
+              <div
                 key={m.id}
-                message={m}
-                currentUserId={currentUserId}
-                viewerRole={viewerRole}
-                ticketId={ticket.id}
-                authToken={authToken}
-                hasReadByOther={m.read_by.some((r) => r.user_id !== currentUserId)}
-              />
-            ) : (
-              <SystemMessage key={m.id} message={m} viewerRole={viewerRole} />
-            ),
-          )
+                id={`msg-${m.id}`}
+                style={{
+                  background: isFlashing ? 'var(--bg-muted)' : 'transparent',
+                  borderRadius: 'var(--r-md)',
+                  padding: isFlashing ? '4px' : '0',
+                  margin: isFlashing ? '-4px' : '0',
+                  transition: 'background 1.2s ease-out, padding 0.2s, margin 0.2s',
+                }}
+              >
+                {m.type === 'message' ? (
+                  <MessageBubble
+                    message={m}
+                    currentUserId={currentUserId}
+                    viewerRole={viewerRole}
+                    ticketId={ticket.id}
+                    authToken={authToken}
+                    hasReadByOther={m.read_by.some((r) => r.user_id !== currentUserId)}
+                    onReply={(msg) => setReplyTo(msg)}
+                    onJumpTo={jumpToMessage}
+                  />
+                ) : (
+                  <SystemMessage message={m} viewerRole={viewerRole} />
+                )}
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -410,6 +454,8 @@ export function TicketView({ ticket, currentUserId, canChangeStatus }: TicketVie
         currentUserId={currentUserId}
         disabled={ticket.is_closed}
         disabledHint="Тикет закрыт — отправка недоступна"
+        replyTo={replyTo}
+        onClearReply={() => setReplyTo(null)}
       />
 
       <Modal
