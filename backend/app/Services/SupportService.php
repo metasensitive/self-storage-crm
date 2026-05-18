@@ -58,14 +58,19 @@ class SupportService
      *
      * @param UploadedFile[] $files
      */
-    public function sendMessage(SupportTicket $ticket, User $author, ?string $body, array $files = []): SupportMessage
-    {
+    public function sendMessage(
+        SupportTicket $ticket,
+        User $author,
+        ?string $body,
+        array $files = [],
+        ?int $replyToMessageId = null,
+    ): SupportMessage {
         if ($ticket->isClosed()) {
             throw new InvalidArgumentException('Тикет закрыт — сообщения недоступны');
         }
 
-        $message = DB::transaction(function () use ($ticket, $author, $body, $files) {
-            $message = $this->writeMessage($ticket, $author, $body, $files);
+        $message = DB::transaction(function () use ($ticket, $author, $body, $files, $replyToMessageId) {
+            $message = $this->writeMessage($ticket, $author, $body, $files, $replyToMessageId);
             $this->touchLastMessage($ticket, $message);
             return $message;
         });
@@ -203,19 +208,25 @@ class SupportService
     // ───── internals ────────────────────────────────────────────────────────
 
     /** Создать запись сообщения + вложения (внутри транзакции). */
-    private function writeMessage(SupportTicket $ticket, User $author, ?string $body, array $files): SupportMessage
-    {
+    private function writeMessage(
+        SupportTicket $ticket,
+        User $author,
+        ?string $body,
+        array $files,
+        ?int $replyToMessageId = null,
+    ): SupportMessage {
         $message = SupportMessage::create([
             'ticket_id' => $ticket->id,
             'author_id' => $author->id,
             'body' => $body,
+            'reply_to_message_id' => $replyToMessageId,
         ]);
 
         if (!empty($files)) {
             $this->storeAttachments($message, $files);
         }
 
-        return $message->fresh(['attachments']);
+        return $message->fresh(['attachments', 'replyTo.author']);
     }
 
     /**

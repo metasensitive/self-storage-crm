@@ -25,6 +25,10 @@ interface MessageBubbleProps {
   authToken: string | null;
   /** Сообщение прочитано хотя бы одним получателем (для двойной галочки). */
   hasReadByOther: boolean;
+  /** Клик по «Ответить» — TicketView переходит в reply-режим. */
+  onReply?: (message: SupportMessage) => void;
+  /** Клик по reply-card — скролл к цитируемому оригиналу. */
+  onJumpTo?: (messageId: number) => void;
 }
 
 export function MessageBubble({
@@ -34,6 +38,8 @@ export function MessageBubble({
   ticketId,
   authToken,
   hasReadByOther,
+  onReply,
+  onJumpTo,
 }: MessageBubbleProps) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -232,6 +238,73 @@ export function MessageBubble({
               ...bubbleStyle,
             }}
           >
+            {/* Цитата (reply) — рендерим над содержимым самого сообщения.
+                Клик скроллит ленту к оригиналу. Если оригинал удалён —
+                показываем плашку без активности (id может быть null). */}
+            {message.reply_to && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (message.reply_to?.id && onJumpTo) onJumpTo(message.reply_to.id);
+                }}
+                disabled={!message.reply_to.id || message.reply_to.is_deleted}
+                title={
+                  message.reply_to.is_deleted
+                    ? 'Оригинал удалён'
+                    : 'Перейти к цитируемому сообщению'
+                }
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  marginBottom: 8,
+                  padding: '6px 10px',
+                  background: isMine
+                    ? 'rgba(255, 255, 255, 0.14)'
+                    : 'var(--bg-muted)',
+                  borderLeft: `3px solid ${isMine ? 'rgba(255,255,255,0.6)' : 'var(--accent)'}`,
+                  borderTop: 'none',
+                  borderRight: 'none',
+                  borderBottom: 'none',
+                  borderRadius: 6,
+                  color: 'inherit',
+                  cursor:
+                    !message.reply_to.id || message.reply_to.is_deleted ? 'default' : 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    opacity: 0.85,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '100%',
+                  }}
+                >
+                  {authorDisplayName(message.reply_to.author ?? null, viewerRole) ?? 'Сообщение'}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.75,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '100%',
+                    fontStyle: message.reply_to.is_deleted ? 'italic' : 'normal',
+                  }}
+                >
+                  {message.reply_to.is_deleted
+                    ? 'Сообщение удалено'
+                    : message.reply_to.preview || '—'}
+                </div>
+              </button>
+            )}
+
             {isDeleted ? (
               <div className="t-body" style={{ fontStyle: 'italic', opacity: 0.7 }}>
                 Сообщение удалено
@@ -281,6 +354,25 @@ export function MessageBubble({
             <span title="Отправляется" style={{ display: 'inline-flex' }}>
               <Ic name="clock" size={11} className="" />
             </span>
+          )}
+          {/* Ответить — доступно на любом нормальном (не системном,
+              не удалённом, не optimistic) сообщении, включая чужие
+              и собственные за пределами edit-окна. */}
+          {!isDeleted && !isPending && !editing && onReply && (
+            <button
+              type="button"
+              onClick={() => onReply(message)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                padding: 2,
+              }}
+              title="Ответить"
+            >
+              <Ic name="reply" size={12} />
+            </button>
           )}
           {canEdit && !editing && !isDeleted && (
             <>

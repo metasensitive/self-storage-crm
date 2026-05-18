@@ -49,6 +49,7 @@ export type IconName =
   | 'file-xls'
   | 'file-txt'
   | 'reopen'
+  | 'reply'
   | 'check_double'
   | 'expand'
   | 'dot';
@@ -366,6 +367,13 @@ const PATHS: Record<IconName, ReactElement> = {
           на друга, как в Telegram. */}
       <path d="M18 6 7 17l-5-5" />
       <path d="m22 10-7.5 7.5L13 16" />
+    </>
+  ),
+  reply: (
+    <>
+      {/* Lucide Reply: ↩ — стрелка влево с загибом вниз. */}
+      <path d="M9 17 4 12l5-5" />
+      <path d="M4 12h13a4 4 0 0 1 4 4v3" />
     </>
   ),
   expand: (

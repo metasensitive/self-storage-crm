@@ -14,6 +14,7 @@ class SupportMessage extends Model
     protected $fillable = [
         'ticket_id',
         'author_id',
+        'reply_to_message_id',
         'type',
         'body',
         'edited_at',
@@ -53,6 +54,15 @@ class SupportMessage extends Model
     public function reads(): HasMany
     {
         return $this->hasMany(SupportMessageRead::class, 'message_id');
+    }
+
+    /**
+     * Цитируемое сообщение (self-FK). NULL — либо сообщение не было
+     * reply'ем, либо оригинал удалён (FK setNullOnDelete).
+     */
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(SupportMessage::class, 'reply_to_message_id');
     }
 
     /**

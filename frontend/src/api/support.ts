@@ -49,6 +49,17 @@ export interface SupportMessageRead {
 
 export type SupportMessageType = 'message' | 'system_closed' | 'system_reopened';
 
+/**
+ * Краткая ссылка на оригинал, к которому это сообщение является reply.
+ * Если оригинал удалён, `id` может быть null, а `is_deleted` = true.
+ */
+export interface SupportReplyTarget {
+  id: number | null;
+  author?: { id: number; name: string; role: 'admin' | 'manager' } | null;
+  preview?: string | null;
+  is_deleted: boolean;
+}
+
 export interface SupportMessage {
   id: number;
   type: SupportMessageType;
@@ -59,6 +70,8 @@ export interface SupportMessage {
   edited_at: string | null;
   deleted_at: string | null;
   read_by: SupportMessageRead[];
+  /** Если сообщение — reply на другое, здесь его краткая инфа. Иначе поля нет. */
+  reply_to?: SupportReplyTarget;
   created_at: string;
 }
 
@@ -91,12 +104,22 @@ export interface CreateTicketPayload {
 export interface SendMessagePayload {
   body?: string;
   attachments?: File[];
+  /** id сообщения этого же тикета, на которое мы цитированно отвечаем. */
+  reply_to_message_id?: number;
 }
 
-function buildMultipart(payload: { body?: string; attachments?: File[]; subject?: string }): FormData {
+function buildMultipart(payload: {
+  body?: string;
+  attachments?: File[];
+  subject?: string;
+  reply_to_message_id?: number;
+}): FormData {
   const fd = new FormData();
   if (payload.subject !== undefined) fd.append('subject', payload.subject);
   if (payload.body !== undefined && payload.body !== '') fd.append('body', payload.body);
+  if (typeof payload.reply_to_message_id === 'number') {
+    fd.append('reply_to_message_id', String(payload.reply_to_message_id));
+  }
   (payload.attachments ?? []).forEach((file) => fd.append('attachments[]', file));
   return fd;
 }
