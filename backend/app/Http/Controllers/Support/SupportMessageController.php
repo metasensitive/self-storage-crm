@@ -31,8 +31,20 @@ class SupportMessageController extends Controller
 
         $messages = $ticket->messages()
             ->withTrashed()
-            ->with(['author:id,name,email,role,avatar', 'attachments', 'reads'])
+            ->with([
+                'author:id,name,email,role,avatar',
+                'attachments',
+                'reads',
+                // Цитата (reply): подгружается одним JOIN'ом — без N+1
+                // на ленту, где много reply-сообщений. withTrashed()
+                // на самой relation-query — чтобы удалённый оригинал
+                // тоже пришёл (фронт покажет «Сообщение удалено»).
+                'replyTo' => function ($q) {
+                    $q->withTrashed()->with('author:id,name,email,role,avatar');
+                },
+            ])
             ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->cursorPaginate(50);
 
         return response()->json([
@@ -59,12 +71,18 @@ class SupportMessageController extends Controller
                 $request->user(),
                 $request->input('body'),
                 $request->file('attachments') ?? [],
+                $request->integer('reply_to_message_id') ?: null,
             );
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $message->load(['author:id,name,email,role,avatar', 'attachments', 'reads']);
+        $message->load([
+            'author:id,name,email,role,avatar',
+            'attachments',
+            'reads',
+            'replyTo.author:id,name,email,role,avatar',
+        ]);
 
         return response()->json([
             'message' => 'Сообщение отправлено',
